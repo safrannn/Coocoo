@@ -22,5 +22,5 @@ matrix:
       - cargo build --verbose
       - wasm-pack build
       - wasm-pack test --chrome --firefox --headless
-      - npm test
+      - npm test --node --chrome --firefox --safari
       - npm run build --node --chrome --firefox --safari

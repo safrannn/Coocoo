@@ -16,6 +16,9 @@ module.exports = {
   devServer: {
     contentBase: dist,
   },
+  node: {
+    fs: 'empty'
+  },
   plugins: [
     new CopyPlugin([
       path.resolve(__dirname, "static")
@@ -23,6 +26,11 @@ module.exports = {
 
     new WasmPackPlugin({
       crateDirectory: __dirname,
+      outName: "compiler"
     }),
-  ]
+  ],
+
+  resolve: {
+    extensions: [".js", ".jsx"]
+  }
 };

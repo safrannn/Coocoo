@@ -1,3 +1,12 @@
+# coocoo
+> a compiler for texture generation written in rust and compiles to webaseembly
+
+# to run
+```sh
+npm start
+```
+
+---
 ## How to install
 
 ```sh

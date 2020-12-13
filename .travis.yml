@@ -1,7 +1,10 @@
-language: rust
+language: 
+  rust
+
 sudo: false
 
-cache: cargo
+cache: 
+  cargo
 
 matrix:
   include:
@@ -22,5 +25,3 @@ matrix:
       - cargo build --verbose
       - wasm-pack build
       - wasm-pack test --chrome --firefox --headless
-      - npm test --node --chrome --firefox --safari
-      - npm run build --node --chrome --firefox --safari

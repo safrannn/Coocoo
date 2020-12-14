@@ -17,15 +17,13 @@ matrix:
         - (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
         - cargo install-update -a
         - curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
-      install:
-        - npm install
       script:
         - cargo test --verbose
         - cargo build --verbose
         - wasm-pack test --chrome --headless
         - wasm-pack build
 
-  - language: node.js
+  - language: node_js
       node_js: 
         - 'node'
       script:

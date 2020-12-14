@@ -1,3 +1,6 @@
+language: 
+  rust
+
 sudo: false
 
 cache: 
@@ -5,24 +8,23 @@ cache:
 
 matrix:
   include:
-  # Builds with wasm-pack.
-  - language: rust
-      rust:   
-        - stable
-      env: RUST_BACKTRACE=1
-      addons:
-        firefox: latest
-        chrome: stable
-      before_script:
-        - (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
-        - cargo install-update -a
-        - curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
-      script:
-        - cargo test --verbose
-        - cargo build --verbose
-        - wasm-pack test --chrome --headless
-        - wasm-pack build
-        - npm install
-        - npm run test
-        - npm build
 
+  # Builds with wasm-pack.
+  - rust: stable
+    env: RUST_BACKTRACE=1
+    addons:
+      firefox: latest
+      chrome: stable
+    before_script:
+      - (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
+      # - (test -x $HOME/.cargo/bin/cargo-generate || cargo install --vers "^0.2" cargo-generate)
+      - cargo install-update -a
+      - curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+    script:
+      - cargo test --verbose
+      - cargo build --verbose
+      - wasm-pack test --chrome --headless
+      - wasm-pack build
+      - npm install
+      - npm run test
+      - npm build

@@ -25,4 +25,4 @@ matrix:
       - cargo build --verbose
       - wasm-pack test --chrome --headless
       - wasm-pack build
-      - jest
+      - npm run test

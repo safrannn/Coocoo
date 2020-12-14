@@ -4,24 +4,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
 
-cfg_if::cfg_if! {
-    if #[cfg(test)] {
-        pub fn log(s: &str) {
-            println!("{:?}", s);
-        }
-    } else {
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = console)]
-            fn log(s: &str);
-            #[wasm_bindgen(js_namespace = console, js_name = log)]
-            fn log_u32(a: u32);
-            #[wasm_bindgen(js_namespace = console, js_name = log)]
-            fn log_many(a: &str, b: &str);
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageData {
     pub width: usize,
@@ -152,7 +134,7 @@ impl ImageLibrary {
 
 lazy_static! {
     #[wasm_bindgen]
-    static ref IMAGE_LIBRARY: Mutex<ImageLibrary> = Mutex::new(ImageLibrary::new());
+    pub static ref IMAGE_LIBRARY: Mutex<ImageLibrary> = Mutex::new(ImageLibrary::new());
 }
 
 #[wasm_bindgen]
@@ -195,53 +177,4 @@ pub fn export_bindgen() -> JsValue {
 #[wasm_bindgen]
 pub fn reset_bindgen() {
     IMAGE_LIBRARY.lock().unwrap().reset();
-}
-
-//============image filter functions below this line============
-#[wasm_bindgen]
-pub fn darken(image_id: i32, value: i32) -> i32 {
-    let mut result_image_data = IMAGE_LIBRARY
-        .lock()
-        .unwrap()
-        .get_image_data(image_id)
-        .unwrap()
-        .clone();
-    for i in 0..result_image_data.pixels.len() {
-        if result_image_data.pixels[i] >= value as u8 {
-            result_image_data.pixels[i] -= value as u8;
-        } else {
-            result_image_data.pixels[i] = 0;
-        }
-    }
-
-    let result_image_id = IMAGE_LIBRARY.lock().unwrap().get_content().len() as i32 + 1;
-    IMAGE_LIBRARY.lock().unwrap().add_image(
-        result_image_id.to_string(),
-        result_image_data.width,
-        result_image_data.height,
-        result_image_data.pixels,
-        true,
-    );
-
-    result_image_id
-}
-
-#[wasm_bindgen]
-pub fn blank_image(width: i32, height: i32) -> i32 {
-    let pixel_total: usize = (width * height * 3) as usize;
-    let mut result_image_data: Vec<u8> = vec![0; pixel_total];
-    for i in 0..pixel_total {
-        result_image_data[i] = 100;
-    }
-
-    let result_image_id = IMAGE_LIBRARY.lock().unwrap().get_content().len() as i32 + 1;
-    IMAGE_LIBRARY.lock().unwrap().add_image(
-        result_image_id.to_string(),
-        width as usize,
-        height as usize,
-        result_image_data,
-        true,
-    );
-
-    result_image_id
 }

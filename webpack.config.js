@@ -29,7 +29,35 @@ module.exports = {
       outName: "compiler"
     }),
   ],
-
+  module: {
+    rules: [
+      {
+        test: /\.(js|jsx)$/,
+        exclude: /node_modules/,
+        use: [{
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              ['@babel/preset-env', {
+                "targets": "defaults"
+              }],
+              '@babel/preset-react'
+            ]
+          }
+        }],
+      },
+      {
+        test: /\.(svg|css)$/,
+        loader: 'file-loader'
+      },
+      // {
+      //   test: /\.rs$/,
+      //   use: [{
+      //     loader: 'wasm-loader'
+      //   }]
+      // }
+    ]
+  },
   resolve: {
     extensions: [".js", ".jsx"]
   }

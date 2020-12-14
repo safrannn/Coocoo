@@ -1,28 +1,12 @@
+use super::*;
 use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 use walrus::ir::*;
 use walrus::FunctionId;
 use walrus::InstrSeqBuilder;
 use walrus::*;
-use wasm_bindgen::prelude::*;
 
-cfg_if::cfg_if! {
-    if #[cfg(test)] {
-        pub fn log(s: &str) {
-            println!("{:?}", s);
-        }
-    } else {
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = console)]
-            fn log(s: &str);
-            #[wasm_bindgen(js_namespace = console, js_name = log)]
-            fn log_u32(a: u32);
-            #[wasm_bindgen(js_namespace = console, js_name = log)]
-            fn log_many(a: &str, b: &str);
-        }
-    }
-}
+log_rule!();
 
 fn variable_dependency_add(
     child_name: String,

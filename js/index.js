@@ -1,6 +1,14 @@
-// import("../pkg/index.js").catch(console.error);
+import React from 'react'
+import ReactDOM from 'react-dom'
 
-// import wabt from "wabt";
+ReactDOM.render(
+    React.createElement('div', null, `Hello React`),
+    document.getElementById('app')
+)
+
+
+
+import wabt from "wabt";
 import { window_onload, add_to_carousel, show_result_images, reset_carousel, w_ } from "./window.js";
 console.log(window_onload)
 window.onload = window_onload;
@@ -87,7 +95,7 @@ async function main() {
     }
 
     document.getElementById('run').onclick = async function () {
-        var code_input = "func coocoo() {" + document.getElementById("code_input").value + "}";
+        var code_input = document.getElementById("code_input").value;
         var image_names = compiler.image_names_bindgen();
         var output_wasm_buffer = compiler.code2wasm(code_input, image_names);
 
@@ -117,12 +125,12 @@ async function main() {
             }
         };
         let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);//?
-        instance.exports.coocoo();
+        instance.exports.main();
 
         show_result_images(compiler.export_bindgen());
     }
 
-        ``
+
     function show_result_images(result_images) {
         reset_carousel("result_images");
         console.log("result images:", result_images);

@@ -23,5 +23,6 @@ matrix:
     script:
       - cargo test --verbose
       - cargo build --verbose
+      - wasm-pack test --chrome --headless
       - wasm-pack build
-      - wasm-pack test --chrome --firefox --headless
+      - jest

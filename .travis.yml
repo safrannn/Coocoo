@@ -1,7 +1,7 @@
 sudo: false
 
-# cache: 
-#   cargo
+cache: 
+  cargo
 
 matrix:
   include:
@@ -22,11 +22,7 @@ matrix:
         - cargo build --verbose
         - wasm-pack test --chrome --headless
         - wasm-pack build
-
-  - language: node_js
-      node_js: 
-        - 'node'
-      script:
         - npm install
         - npm run test
+        - npm build
 

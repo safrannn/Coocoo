@@ -1,18 +1,14 @@
-# language: 
-#   rust
-#   node_js
-
 sudo: false
 
-cache: 
-  cargo
-  npm
+# cache: 
+#   cargo
 
 matrix:
   include:
   # Builds with wasm-pack.
   - language: rust
-      rust: stable
+      rust:   
+        - stable
       env: RUST_BACKTRACE=1
       addons:
         firefox: latest

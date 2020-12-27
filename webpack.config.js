@@ -32,6 +32,10 @@ module.exports = {
   module: {
     rules: [
       {
+        test: /\.css$/i,
+        use: ["style-loader", "css-loader"],
+      },
+      {
         test: /\.(js|jsx)$/,
         exclude: /node_modules/,
         use: [{
@@ -45,17 +49,7 @@ module.exports = {
             ]
           }
         }],
-      },
-      {
-        test: /\.(svg|css)$/,
-        loader: 'file-loader'
-      },
-      // {
-      //   test: /\.rs$/,
-      //   use: [{
-      //     loader: 'wasm-loader'
-      //   }]
-      // }
+      }
     ]
   },
   resolve: {

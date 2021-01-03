@@ -106,10 +106,11 @@ impl Compiler {
 }
 
 pub fn parse_image_names(image_file_names: &JsValue) -> Vec<String> {
-    match image_file_names.into_serde::<String>() {
+    match image_file_names.into_serde::<Vec<String>>() {
         Ok(names) => {
-            let result = names.split(";").map(|s| s.to_string()).collect();
-            result
+            // let result = names.split(";").map(|s| s.to_string()).collect();
+            // result
+            names
         }
         Err(e) => {
             log(&format!(
@@ -120,6 +121,14 @@ pub fn parse_image_names(image_file_names: &JsValue) -> Vec<String> {
         }
     }
 }
+
+#[wasm_bindgen]
+pub fn code_to_wasm(src: String, image_names: &JsValue) -> Vec<u8> {
+    let mut compiler = Compiler::new();
+    let image_names: Vec<String> = parse_image_names(image_names);
+    compiler.run(src, image_names)
+}
+
 #[cfg(test)]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod tests {

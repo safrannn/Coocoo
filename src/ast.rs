@@ -1,3 +1,4 @@
+// use super::Compiler::*;
 use super::*;
 use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
@@ -7,6 +8,47 @@ use walrus::InstrSeqBuilder;
 use walrus::*;
 
 log_rule!();
+
+pub struct ItemTracker {
+    image_names: HashMap<String, (usize, bool)>,
+    image_id: usize,
+}
+impl ItemTracker {
+    pub fn new() -> ItemTracker {
+        ItemTracker {
+            image_names: HashMap::new(),
+            image_id: 0,
+        }
+    }
+    pub fn add_image(&mut self, name: String, id: Option<usize>, export: bool) {
+        match id {
+            Some(v) => {
+                self.image_names.insert(name.clone(), (v, export));
+            }
+            None => {
+                self.image_names
+                    .insert(name.clone(), (self.image_id.clone(), export));
+                self.image_id += 1;
+            }
+        }
+    }
+
+    pub fn image_id_increment(&mut self) {
+        self.image_id += 1;
+    }
+
+    pub fn image_id_decrement(&mut self) {
+        self.image_id -= 1;
+    }
+
+    pub fn find_image(&self, name: &String) -> Option<&(usize, bool)> {
+        self.image_names.get(name)
+    }
+
+    pub fn get_image_names(&self) -> &HashMap<String, (usize, bool)> {
+        &self.image_names
+    }
+}
 
 fn variable_dependency_add(
     child_name: String,
@@ -78,6 +120,7 @@ pub trait Compile {
         local_ids: &mut HashMap<String, (String, LocalId)>,
         function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
         variable_dependency: &mut HashMap<String, Vec<String>>,
+        item_tracker: &mut ItemTracker,
     );
 }
 
@@ -114,6 +157,7 @@ impl Compile for Expr {
         local_ids: &mut HashMap<String, (String, LocalId)>,
         function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
         variable_dependency: &mut HashMap<String, Vec<String>>,
+        item_tracker: &mut ItemTracker,
     ) {
         use self::Expr::*;
         match *self {
@@ -127,6 +171,7 @@ impl Compile for Expr {
                     local_ids,
                     function_ids,
                     variable_dependency,
+                    item_tracker,
                 );
                 r.compile(
                     module,
@@ -134,6 +179,7 @@ impl Compile for Expr {
                     local_ids,
                     function_ids,
                     variable_dependency,
+                    item_tracker,
                 );
                 op.compile(
                     module,
@@ -141,6 +187,7 @@ impl Compile for Expr {
                     local_ids,
                     function_ids,
                     variable_dependency,
+                    item_tracker,
                 );
             }
             Variable(ref identifier) => {
@@ -163,7 +210,6 @@ impl Compile for Expr {
             }
             Call(ref identifier, ref exprs) => {
                 if let Some((func_id, params_type)) = function_ids.get(identifier) {
-                    // check each expr type
                     if exprs.len() != params_type.len() {
                         log(&format!(
                             "Error: function {:?} should take {:?} parameters instead of {:?} ",
@@ -219,6 +265,8 @@ impl Compile for Expr {
                     }
 
                     builder.call(*func_id);
+                    item_tracker.image_id_increment();
+
                     log(&format!("function {:?}({:?}) called.", identifier, exprs));
                 } else {
                     log(&format!(
@@ -267,6 +315,7 @@ impl Compile for VarDef {
         local_ids: &mut HashMap<String, (String, LocalId)>,
         function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
         variable_dependency: &mut HashMap<String, Vec<String>>,
+        item_tracker: &mut ItemTracker,
     ) {
         if self.identifier.parse::<i32>().is_ok() {
             log(&format!(
@@ -280,10 +329,6 @@ impl Compile for VarDef {
                 let new_id = module.locals.add(ValType::I32);
                 builder.local_set(new_id);
                 local_ids.insert(self.identifier.to_string(), ("Number".to_string(), new_id));
-                log(&format!(
-                    "adding new identifier [{:?}](local id: {:?},value: {:?},type: i32)",
-                    self.identifier, new_id, n,
-                ));
             }
             Expr::Variable(var_right) => {
                 if let Some((var_right_type, var_right_id)) = (*local_ids).get(var_right) {
@@ -294,10 +339,22 @@ impl Compile for VarDef {
                             builder.local_set(new_id);
                             local_ids
                                 .insert(self.identifier.to_string(), ("Image".to_string(), new_id));
-                            // log(&format!(
-                            //     "adding new identifier [{:?}](local id: {:?},value: {:?},type: Image)",
-                            //     self.identifier, new_id,var_right
-                            // ));
+
+                            let (expr_image_id, _) = match item_tracker.find_image(var_right) {
+                                Some(v) => v.clone(),
+                                None => {
+                                    log(&format!(
+                                        "None matched, var_right: {:?}, local ids:{:?}",
+                                        var_right, local_ids
+                                    ));
+                                    (0, false)
+                                }
+                            };
+                            item_tracker.add_image(
+                                self.identifier.clone(),
+                                Some(expr_image_id),
+                                true,
+                            )
                         }
                         "Number" => {
                             builder.local_get(*var_right_id);
@@ -307,10 +364,6 @@ impl Compile for VarDef {
                                 self.identifier.to_string(),
                                 ("Number".to_string(), new_id),
                             );
-                            // log(&format!(
-                            //     "adding new identifier [{:?}](local id: {:?},value: {:?},type: Number)",
-                            //     self.identifier, new_id,var_right
-                            // ));
                         }
                         _ => {
                             log(&format!(
@@ -341,15 +394,20 @@ impl Compile for VarDef {
             }
             Expr::Call(_ident, _exprs) => {
                 let new_id = module.locals.add(ValType::I32);
+
                 self.expr.compile(
                     module,
                     builder,
                     local_ids,
                     function_ids,
                     variable_dependency,
+                    item_tracker,
                 );
                 builder.local_set(new_id);
                 local_ids.insert(self.identifier.clone(), ("Image".to_string(), new_id));
+
+                item_tracker.image_id_decrement();
+                item_tracker.add_image(self.identifier.clone(), None, true);
             }
             _ => {
                 log(&format!(
@@ -390,6 +448,7 @@ impl Compile for Opcode {
         _local_ids: &mut HashMap<String, (String, LocalId)>,
         _function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
         _variable_dependency: &mut HashMap<String, Vec<String>>,
+        _item_tracker: &mut ItemTracker,
     ) {
         use self::Opcode::*;
         match *self {
@@ -421,6 +480,7 @@ impl Compile for Prototype {
         local_ids: &mut HashMap<String, (String, LocalId)>,
         _function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
         _variable_dependency: &mut HashMap<String, Vec<String>>,
+        _item_tracker: &mut ItemTracker,
     ) {
         for param in &self.params {
             let (_, id) = local_ids[param]; //?
@@ -449,6 +509,7 @@ impl Compile for Function {
         local_ids: &mut HashMap<String, (String, LocalId)>,
         function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
         variable_dependency: &mut HashMap<String, Vec<String>>,
+        item_tracker: &mut ItemTracker,
     ) {
         self.prototype.compile(
             module,
@@ -456,6 +517,7 @@ impl Compile for Function {
             local_ids,
             function_ids,
             variable_dependency,
+            item_tracker,
         );
         for vardef in &self.vardefs {
             vardef.compile(
@@ -464,6 +526,7 @@ impl Compile for Function {
                 local_ids,
                 function_ids,
                 variable_dependency,
+                item_tracker,
             );
         }
     }

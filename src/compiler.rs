@@ -1,5 +1,6 @@
-use super::ast::Compile;
+use super::ast::*;
 use super::coocoo::ProgramParser;
+use super::image_library::*;
 use super::*;
 use std::collections::HashMap;
 use walrus::FunctionId;
@@ -52,16 +53,20 @@ impl Compiler {
         }
     }
 
-    fn import_images(&mut self, builder: &mut InstrSeqBuilder, image_names: Vec<String>) {
+    fn import_images(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        image_names: &Vec<String>,
+        item_tracker: &mut ItemTracker,
+    ) {
         for i in 0..image_names.len() {
-            if image_names[i] != "".to_string() {
-                let image_name = image_names[i].trim().to_string();
-                builder.i32_const(i as i32);
-                let new_id = self.module.locals.add(walrus::ValType::I32);
-                builder.local_set(new_id);
-                self.local_ids
-                    .insert(image_name, ("Image".to_string(), new_id));
-            }
+            let image_name = image_names[i].clone().trim().to_string();
+            builder.i32_const(i as i32);
+            let new_id = self.module.locals.add(walrus::ValType::I32);
+            builder.local_set(new_id);
+            self.local_ids
+                .insert(image_name.clone(), ("Image".to_string(), new_id));
+            item_tracker.add_image(image_name.clone(), None, false);
         }
     }
 
@@ -73,19 +78,19 @@ impl Compiler {
         //     coocoo::ProgramParser::new().parse(&self.src)
         // ));
         let function = &functions[0];
-
         let mut function_builder = FunctionBuilder::new(&mut self.module.types, &vec![], &[]);
         let mut builder: InstrSeqBuilder = function_builder.func_body();
-
-        self.import_images(&mut builder, image_names);
-
+        let mut item_tracker: ItemTracker = ItemTracker::new();
+        self.import_images(&mut builder, &image_names, &mut item_tracker);
         let mut variable_dependency: HashMap<String, Vec<String>> = HashMap::new();
+
         function.compile(
             &mut self.module,
             &mut builder,
             &mut self.local_ids,
             &self.function_ids,
             &mut variable_dependency,
+            &mut item_tracker,
         );
 
         let function_id = function_builder.finish(vec![], &mut self.module.funcs);
@@ -94,8 +99,16 @@ impl Compiler {
             .exports
             .add(&function.prototype.identifier, function_id);
 
-        // log(&format!("program: {:?}", function));
+        IMAGE_LIBRARY
+            .lock()
+            .unwrap()
+            .add_export_names(item_tracker.get_image_names());
 
+        log(&format!(
+            "item_tracker.get_image_names(): {:?}",
+            item_tracker.get_image_names()
+        ));
+        // log(&format!("program: {:?}", function));
         self.module.emit_wasm()
     }
 
@@ -105,13 +118,9 @@ impl Compiler {
     }
 }
 
-pub fn parse_image_names(image_file_names: &JsValue) -> Vec<String> {
+fn parse_image_names(image_file_names: &JsValue) -> Vec<String> {
     match image_file_names.into_serde::<Vec<String>>() {
-        Ok(names) => {
-            // let result = names.split(";").map(|s| s.to_string()).collect();
-            // result
-            names
-        }
+        Ok(names) => names,
         Err(e) => {
             log(&format!(
                 "Err: {:?}, failed to pass image file names from js to wasm",

@@ -15,6 +15,7 @@ import SettingsOutlinedIcon from '@material-ui/icons/SettingsOutlined';
 import PlayCircleFilledIcon from '@material-ui/icons/PlayCircleFilled';
 import GetAppIcon from '@material-ui/icons/GetApp';
 import PublishIcon from '@material-ui/icons/Publish';
+import RemoveCircleOutlineIcon from '@material-ui/icons/RemoveCircleOutline';
 import TreeView from '@material-ui/lab/TreeView';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import ChevronRightIcon from '@material-ui/icons/ChevronRight';
@@ -31,48 +32,40 @@ const regeneratorRuntime = require("regenerator-runtime");
 
 
 class ObservableStateStore {
-    imageInputFiles = [
-        {
-            name: 'img_1',
+    imageInputFiles = new Map([
+        ["img_1", {
             src: "https://www.gettyimages.com/gi-resources/images/500px/983794168.jpg",
             width: 1,
             height: 1,
-            dataUint8: [],
-            // cols: 2,
-        },
-        {
-            name: 'img_2',
+            pixels: [],
+        }],
+        ["img_2", {
             src: "https://helpx.adobe.com/content/dam/help/en/stock/how-to/visual-reverse-image-search/jcr_content/main-pars/image/visual-reverse-image-search-v2_intro.jpg",
             width: 1,
             height: 1,
-            dataUint8: [],
-            // cols: 2,
-        },
-        {
-            name: 'img_3',
+            pixels: [],
+        }],
+        ["img_3", {
             src: "https://photojournal.jpl.nasa.gov/jpeg/PIA23689.jpg",
             width: 1,
             height: 1,
-            dataUint8: [],
-            // cols: 2,
-        },
-    ];
-    imageOutputFiles = [
-        {
-            name: 'img_10',
+            pixels: [],
+        }],
+    ]);
+    imageOutputFiles = new Map([
+        ["img_10", {
             src: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTgaNi3D4eNMnyGH56_1gD-0485xuI07N6ztw&usqp=CAU",
             width: 1,
             height: 1,
-            dataUint8: [],
-        },
-        {
-            name: 'img_11',
+            pixels: [],
+        }],
+        ["img_11", {
             src: "https://image.shutterstock.com/image-photo/large-beautiful-drops-transparent-rain-260nw-668593321.jpg",
             width: 1,
             height: 1,
-            dataUint8: [],
-        }
-    ];
+            pixels: [],
+        }]
+    ]);
     code = "";
     consoleOutput = "";
     consoleWasm = "";
@@ -85,62 +78,75 @@ class ObservableStateStore {
             consoleOutput: observable,
             consoleWasm: observable,
             addInputImage: action,
-            renameInputImage: computed,
+            renameInputImage: action,
             deleteInputImage: action,
             addOutputImage: action,
+            renameOutputImage: action,
+            clearOutputImage: action,
             changeCode: action,
+            clearCode: action,
             printConsoleOutput: action,
             printConsoleWasm: action,
         });
     }
 
-    addInputImage(image) {
-        this.imageInputFiles.push(image);
-        console.log(image)
-        console.log(this.imageInputFiles)
+    addInputImage(name, image) {
+        this.imageInputFiles.set(name, image);
     }
 
-    // get renameInputImage(oldName, newName) {
-    get renameInputImage() {
-        var success = true;
-        for (var v of this.imageInputFiles) {
-            if (v.name == newName) {
-                success = false;
-            }
+    renameInputImage(oldName, newName) {
+        if (this.imageInputFiles.has(newName)) {
+            return false;
+        } else {
+            this.imageInputFiles.set(newName, this.imageInputFiles.get(oldName));
+            this.imageInputFiles.delete(oldName);
+            return true
         }
-        return success
     }
 
-    get deleteInputImage() {
-
+    deleteInputImage(name) {
+        this.imageInputFiles.delete(name);
     }
 
-    addOutputImage(image) {
-        this.imageOutputFiles.push(image);
-        console.log(image)
-        console.log(this.imageOutputFiles)
+    addOutputImage(name, image) {
+        this.imageOutputFiles.set(name, image);
+    }
+
+    renameOutputImage(oldName, newName) {
+        if (this.imageOutputFiles.has(newName)) {
+            return false;
+        } else {
+            this.imageOutputFiles.set(newName, this.imageOutputFiles.get(oldName));
+            this.imageOutputFiles.delete(oldName);
+            return true
+        }
+    }
+
+    clearOutputImage() {
+        this.imageOutputFiles.clear();
     }
 
     changeCode(src) {
         this.code = src;
-        console.log(this.code)
+    }
+
+    clearCode() {
+        this.code = "";
     }
 
     printConsoleOutput(out) {
         this.consoleOutput = out;
-        console.log(this.consoleOutput)
     }
 
     printConsoleWasm(wasm) {
         this.consoleWasm = wasm;
-        console.log(this.consoleWasm)
     }
 }
 
 const observableStateStore = new ObservableStateStore();
 
 
-
+window.S = observableStateStore;
 
 
 
@@ -160,7 +166,7 @@ const theme = createMuiTheme({
 
 });
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
     root: {
         height: "100vh",
         flexGrow: 1,
@@ -245,22 +251,22 @@ const useStyles = makeStyles(() => ({
             // 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0) 90%)',
             'linear-gradient(to top, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.5) 80%, rgba(255,255,255,0) 100%)',
     },
-    imageRenamePaper: {
-        position: "absolute",
-        backgroundColor: theme.palette.background.paper,
-        borderRadius: "5",
-        boxShadow: theme.shadows[5],
-        padding: theme.spacing(3, 5, 2),
-    },
-    imageRenameButtons: {
-        "& > *": {
-            margin: theme.spacing(1)
-        }
-    },
-    imageRenameContainer: {
-        display: "grid",
-        gridGap: theme.spacing(1)
-    },
+    // imageRenamePaper: {
+    //     position: "absolute",
+    //     backgroundColor: theme.palette.background.paper,
+    //     borderRadius: "5",
+    //     boxShadow: theme.shadows[5],
+    //     padding: theme.spacing(3, 5, 2),
+    // },
+    // imageRenameButtons: {
+    //     "& > *": {
+    //         margin: theme.spacing(1)
+    //     }
+    // },
+    // imageRenameContainer: {
+    //     display: "grid",
+    //     gridGap: theme.spacing(1)
+    // },
 }));
 
 export default function App() {
@@ -401,10 +407,13 @@ function CodeBlock() {
 
 function CodeBar() {
     const classes = useStyles();
+    const handleClearCode = (event) => {
+        observableStateStore.clearCode();
+    };
     return (
         <Grid container className={classes.bar}>
             <Grid item md container justify="flex-start" color="theme.palette.text.secondary">
-                <input accept=".txt" className={classes.inputIcon} id="code_upload" type="file" />
+                {/* <input accept=".txt" className={classes.inputIcon} id="code_upload" type="file" />
                 <label htmlFor="code_upload" >
                     <IconButton id="code_upload_icon">
                         <PublishIcon />
@@ -412,6 +421,10 @@ function CodeBar() {
                 </label>
                 <IconButton>
                     <GetAppIcon />
+                </IconButton>
+                <Divider orientation="vertical" /> */}
+                <IconButton onClick={handleClearCode}>
+                    <RemoveCircleOutlineIcon />
                 </IconButton>
                 <Divider orientation="vertical" />
             </Grid>
@@ -438,6 +451,7 @@ const CodeText = observer(() => {
                     id="code_text"
                     multiline
                     rows={20}
+                    value={observableStateStore.code}
                     placeholder="Enter your code here"
                     className={classes.codeText}
                     onChange={handleChange}
@@ -530,25 +544,25 @@ function ImageInputBar() {
     const handleUpload = (event) => {
         [].forEach.call(event.target.files, function read_file(file) {
             if (/\.(jpe?g|png|gif)$/i.test(file.name)) {
-                var image = {
-                    name: file.name.split(".")[0],
+                let imageName = file.name.split(".")[0];
+                let image = {
                     src: "",
                     width: 0,
                     height: 0,
-                    dataUint8: [],
+                    pixels: [],
                 };
-                var reader = new FileReader();
+                let reader = new FileReader();
                 reader.onload = function () {
                     image.src = reader.result;
-                    var img = new Image();
+                    let img = new Image();
                     img.onload = function () {
                         image.height = img.height;
                         image.width = img.width;
-                        var imgContext = document.createElement("canvas").getContext("2d");
+                        let imgContext = document.createElement("canvas").getContext("2d");
                         imgContext.drawImage(img, 0, 0);
-                        var imageData = imgContext.getImageData(0, 0, img.width, img.height).data;
-                        image.dataUint8 = new Uint8Array(imageData.buffer);
-                        observableStateStore.addInputImage(image);
+                        let imageData = imgContext.getImageData(0, 0, img.width, img.height).data;
+                        image.pixels = new Uint8Array(imageData.buffer);
+                        observableStateStore.addInputImage(imageName, image);
                     }
                     img.src = image.src;
                 };
@@ -573,46 +587,46 @@ function ImageInputBar() {
     );
 }
 
-function ImageInputTile({ tile }) {
-    // const classes = useStyles();
-
-    // const [value, setValue] = React.useState(tile.name);
-    // const handleChange = (event) => {
-    //     setValue(event.target.value);
-    // };
-
-
-    return (
-        <GridListTile key={tile.name} cols={2} >
-            <img src={tile.src} alt={tile.name} />
-            <GridListTileBar
-                // className={classes.imageTitleBar}
-                title={
-                    <form noValidate autoComplete="off">
-                        {/* <InputBase value={tile.name} id={tile.name} onChange={handleChange}> */}
-                        <InputBase value={tile.name} id={tile.name} >
-                        </InputBase>
-                    </form>
-                }
-                actionIcon={
-                    <IconButton>
-                        <DeleteIcon></DeleteIcon>
-                    </IconButton>
-                }
-            />
-        </GridListTile >
-    )
-}
-
 const ImageInputPanel = observer(() => {
     const classes = useStyles();
+    const items = [];
+    observableStateStore.imageInputFiles.forEach(
+        (tile, tileName) => {
+            let name = tileName;
+            let handleRename = (event) => {
+                if (observableStateStore.renameInputImage(tileName, event.target.value)) {
+                    name = event.target.value;
+                }
+            };
+            let handleDelete = () => {
+                observableStateStore.deleteInputImage(name);
+            }
+
+            items.push(
+                <GridListTile key={tileName} cols={2} >
+                    <img src={tile.src} alt={tileName} height="100%" />
+                    <GridListTileBar
+                        className={classes.imageTitleBar}
+                        title={
+                            <form noValidate autoComplete="off">
+                                <InputBase value={name} id={name} margin="dense" autoFocus onChange={handleRename} >
+                                </InputBase>
+                            </form>
+                        }
+                        actionIcon={
+                            <IconButton onClick={handleDelete}>
+                                <DeleteIcon></DeleteIcon>
+                            </IconButton>
+                        }
+                    />
+                </GridListTile >
+            )
+        }
+    )
+
     return (
-        <GridList cellHeight={150}
-            className={classes.imageInputPanel}
-            cols={8}>
-            {observableStateStore.imageInputFiles.map(
-                tile => ImageInputTile({ tile })
-            )}
+        <GridList cellHeight={150} className={classes.imageInputPanel} cols={8}>
+            {items}
         </GridList>
     );
 })
@@ -628,63 +642,63 @@ function ImageOutputBar() {
     );
 }
 
-let ImageOutputTile = ({ tile }) => {
+const ImageOutputPanel = observer(() => {
     const classes = useStyles();
-
-    const [value, setValue] = React.useState(tile.name);
-    const handleChange = (event) => {
-        setValue(event.target.value);
-    };
-
-    return (
-        <GridListTile key={tile.name} cols={2} >
-            <img src={tile.src} alt={tile.name} />
-            <GridListTileBar
-                className={classes.imageTitleBar}
-                title={
-                    <form noValidate autoComplete="off">
-                        <InputBase value={tile.name} id={tile.name} onChange={handleChange}>
-                        </InputBase>
-                    </form>
+    const items = [];
+    observableStateStore.imageOutputFiles.forEach(
+        (tile, tileName) => {
+            let name = tileName;
+            let handleRename = (event) => {
+                if (observableStateStore.renameOutputImage(tileName, event.target.value)) {
+                    name = event.target.value;
                 }
-                actionIcon={
-                    <IconButton>
-                        <GetAppIcon></GetAppIcon>
-                    </IconButton>
-                }
-            />
-        </GridListTile >
+            };
+            items.push(
+                <GridListTile key={tileName} cols={2} >
+                    <img src={tile.src} alt={tileName} height="100%" />
+                    <GridListTileBar
+                        className={classes.imageTitleBar}
+                        title={
+                            <form noValidate autoComplete="off">
+                                <InputBase value={name} id={name} margin="dense" autoFocus onChange={handleRename} >
+                                </InputBase>
+                            </form>
+                        }
+                        actionIcon={
+                            <IconButton>
+                                <GetAppIcon></GetAppIcon>
+                            </IconButton>
+                        }
+                    />
+                </GridListTile >
+            )
+        }
     )
-};
-
-function ImageOutputPanel() {
-    const classes = useStyles();
     return (
         <GridList cellHeight={150} className={classes.imageInputPanel} cols={8}>
-            {observableStateStore.imageOutputFiles.map((tile) => ImageOutputTile({ tile }))}
+            {items}
         </GridList>
     );
-}
+})
 
 async function main() {
     let compiler = await import("../pkg/compiler.js");
 
     function processImageInput() {
-        var names = [];
-        for (var v of observableStateStore.imageInputFiles) {
-            names.push(v.name);
-            compiler.add_image_bindgen(v.name, v.width, v.height, v.dataUint8);
+        let names = [...observableStateStore.imageInputFiles.keys()];
+        for (const [name, data] of observableStateStore.imageInputFiles) {
+            compiler.library_add_image(name, data.width, data.height, data.pixels);
         }
-        console.log(names);
         return names;
     }
 
     document.getElementById('run').onclick = async function () {
-        var image_names = processImageInput();
-        var output_wasm_buffer = compiler.code_to_wasm(observableStateStore.code, image_names);
+        compiler.library_reset();
+        let image_names = processImageInput();
+        let output_wasm_buffer = compiler.code_to_wasm(observableStateStore.code, image_names);
         print_wat(output_wasm_buffer);
 
-        var importObject = {
+        let importObject = {
             env: {
                 darken: function (img_id, value) {
                     compiler.darken(img_id, value);
@@ -697,34 +711,45 @@ async function main() {
         let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);//?
         instance.exports.main();
 
-
         async function print_wat(buffer) {
-            var w = await wabt()
-            var module = w.readWasm(buffer, { readDebugNames: true });
+            let w = await wabt()
+            let module = w.readWasm(buffer, { readDebugNames: true });
             module.generateNames();
             module.applyNames();
-            var wat = module.toText({
+            let wat = module.toText({
                 foldExprs: true,
                 inlineExport: false
             });
             observableStateStore.printConsoleWasm(wat);
         }
 
-        // show_result_images(compiler.export_bindgen());
+        show_result_images(compiler.library_export());
     }
 
+    function show_result_images(result_images) {
+        observableStateStore.clearOutputImage();
+        for (let [name, data] of Object.entries(result_images)) {
+            let image = {
+                src: image_to_src(data.width, data.height, data.pixels),
+                width: data.width,
+                height: data.height,
+                pixels: data.pixels,
+            };
+            observableStateStore.addOutputImage(name, image);
+        }
+        console.log(observableStateStore.imageOutputFiles);
+    }
 
-
-    //     function image_to_src(data, width, height) {
-    //         var canvas = document.createElement("canvas");
-    //         canvas.width = width;
-    //         canvas.height = height;
-    //         var context = canvas.getContext("2d");
-    //         var imageData = context.createImageData(width, height);
-    //         imageData.data.set(data);
-    //         context.putImageData(imageData, 0, 0);
-    //         return canvas.toDataURL()
-    //     }
+    function image_to_src(width, height, pixels) {
+        let canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        let context = canvas.getContext("2d");
+        let imageData = context.createImageData(width, height);
+        imageData.data.set(pixels);
+        context.putImageData(imageData, 0, 0);
+        return canvas.toDataURL()
+    }
 }
 
 main();

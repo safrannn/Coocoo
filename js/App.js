@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { createMuiTheme, makeStyles } from "@material-ui/core/styles";
 import {
-    Box, Button, Divider, Grid, GridList, GridListTile,
+    Box, Button, ButtonGroup, Divider, Grid, GridList, GridListTile,
     GridListTileBar, InputBase, Modal, Tab, Tabs, TextField, Typography
 } from '@material-ui/core';
 import PropTypes from 'prop-types';
@@ -32,40 +32,8 @@ const regeneratorRuntime = require("regenerator-runtime");
 
 
 class ObservableStateStore {
-    imageInputFiles = new Map([
-        ["img_1", {
-            src: "https://www.gettyimages.com/gi-resources/images/500px/983794168.jpg",
-            width: 1,
-            height: 1,
-            pixels: [],
-        }],
-        ["img_2", {
-            src: "https://helpx.adobe.com/content/dam/help/en/stock/how-to/visual-reverse-image-search/jcr_content/main-pars/image/visual-reverse-image-search-v2_intro.jpg",
-            width: 1,
-            height: 1,
-            pixels: [],
-        }],
-        ["img_3", {
-            src: "https://photojournal.jpl.nasa.gov/jpeg/PIA23689.jpg",
-            width: 1,
-            height: 1,
-            pixels: [],
-        }],
-    ]);
-    imageOutputFiles = new Map([
-        ["img_10", {
-            src: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTgaNi3D4eNMnyGH56_1gD-0485xuI07N6ztw&usqp=CAU",
-            width: 1,
-            height: 1,
-            pixels: [],
-        }],
-        ["img_11", {
-            src: "https://image.shutterstock.com/image-photo/large-beautiful-drops-transparent-rain-260nw-668593321.jpg",
-            width: 1,
-            height: 1,
-            pixels: [],
-        }]
-    ]);
+    imageInputFiles = new Map([]);
+    imageOutputFiles = new Map([]);
     code = "";
     consoleOutput = "";
     consoleWasm = "";
@@ -336,14 +304,14 @@ function LeftSider() {
                 classes={{ indicator: classes.indicator }}
             >
                 <Tab icon={<MenuBookIcon />} {...a11yProps(0)} className={classes.leftSiderTab} />
-                <Tab icon={<SettingsOutlinedIcon />} {...a11yProps(1)} className={classes.leftSiderTab} />
+                {/* <Tab icon={<SettingsOutlinedIcon />} {...a11yProps(1)} className={classes.leftSiderTab} /> */}
             </Tabs>
             <TabPanel value={value} index={0}  >
                 <LeftSiderDocument></LeftSiderDocument>
             </TabPanel>
-            <TabPanel value={value} index={1} className={classes.leftSiderTabPanels} >
+            {/* <TabPanel value={value} index={1} className={classes.leftSiderTabPanels} >
                 Item Two
-            </TabPanel>
+            </TabPanel> */}
         </div>
     );
 }
@@ -665,9 +633,10 @@ const ImageOutputPanel = observer(() => {
                             </form>
                         }
                         actionIcon={
-                            <IconButton>
-                                <GetAppIcon></GetAppIcon>
-                            </IconButton>
+                            <Button href={tile.src} download={tileName}>
+                                <GetAppIcon>
+                                </GetAppIcon>
+                            </Button>
                         }
                     />
                 </GridListTile >
@@ -723,21 +692,20 @@ async function main() {
             observableStateStore.printConsoleWasm(wat);
         }
 
-        show_result_images(compiler.library_export());
+        export_images(compiler.library_export());
     }
 
-    function show_result_images(result_images) {
+    function export_images(result_images) {
         observableStateStore.clearOutputImage();
         for (let [name, data] of Object.entries(result_images)) {
             let image = {
                 src: image_to_src(data.width, data.height, data.pixels),
                 width: data.width,
                 height: data.height,
-                pixels: data.pixels,
             };
+            console.log(image)
             observableStateStore.addOutputImage(name, image);
         }
-        console.log(observableStateStore.imageOutputFiles);
     }
 
     function image_to_src(width, height, pixels) {

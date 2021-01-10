@@ -60,15 +60,6 @@ impl ImageLibrary {
         return id;
     }
 
-    pub fn image_exist(&self, name: String) -> bool {
-        for v in self.content.values() {
-            if v.name == name {
-                return true;
-            }
-        }
-        false
-    }
-
     pub fn get_content(&self) -> &HashMap<i32, ImageData> {
         &self.content
     }
@@ -94,7 +85,6 @@ impl ImageLibrary {
         }
     }
 
-    //bug+++++++++++++++++++++++++++++++++++++
     pub fn export(&mut self) -> JsValue {
         let mut result: HashMap<String, ImageData> = HashMap::new();
         for (id, name) in self.export_items.iter() {
@@ -120,11 +110,6 @@ pub fn library_add_image(name: String, width: i32, height: i32, data: Vec<u8>) {
         .lock()
         .unwrap()
         .add_image(name, width, height, data);
-}
-
-#[wasm_bindgen]
-pub fn library_image_exist(name: String) {
-    IMAGE_LIBRARY.lock().unwrap().image_exist(name);
 }
 
 #[wasm_bindgen]

@@ -37,6 +37,7 @@ impl Compiler {
             "blank_image".to_string(),
             vec!["Number".to_string(), "Number".to_string()],
         );
+        lib_func_list.insert("grayscale".to_string(), vec!["Image".to_string()]);
 
         for (func_name, func_param) in lib_func_list.iter() {
             let params = vec![ValType::I32; func_param.len()];

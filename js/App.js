@@ -339,13 +339,13 @@ function LeftSiderDocument() {
                     <TreeItem nodeId="blank_image_usg_1" label="img_1 = blank_image(50,10);" />
                 </TreeItem>
             </TreeItem>
-            <TreeItem nodeId="darken_main" label="darken([img1], [n2]) -> [n3]">
+            <TreeItem nodeId="darken_main" label="darken([img1], [n1]) -> [n2]">
                 <TreeItem nodeId="darken_inp" label="input">
                     <TreeItem nodeId="darken_inp_1" label="[img1] an image id" />
-                    <TreeItem nodeId="darken_inp_2" label="[n2] a brightness value to reduce" />
+                    <TreeItem nodeId="darken_inp_2" label="[n1] a brightness value to reduce" />
                 </TreeItem>
                 <TreeItem nodeId="darken_rtn" label="return">
-                    <TreeItem nodeId="darken_rtn_1" label="[n3] image_id" />
+                    <TreeItem nodeId="darken_rtn_1" label="[n2] image_id" />
                 </TreeItem>
                 <TreeItem nodeId="darken_exp" label="explanation">
                     <TreeItem nodeId="darken_exp_1" label="darken a target image with given a given value by reducing red, green and blue channel all
@@ -354,6 +354,20 @@ function LeftSiderDocument() {
                 </TreeItem>
                 <TreeItem nodeId="darken_usg" label="usage">
                     <TreeItem nodeId="darken_usg_1" label="img_1 = darken(grassland,10);" />
+                </TreeItem>
+            </TreeItem>
+            <TreeItem nodeId="grayscale_main" label="grayscale([img1]) -> [n1]">
+                <TreeItem nodeId="grayscale_inp" label="input">
+                    <TreeItem nodeId="grayscale_inp_1" label="[img1] an image id" />
+                </TreeItem>
+                <TreeItem nodeId="grayscale_rtn" label="return">
+                    <TreeItem nodeId="grayscale_rtn_1" label="[n1] image_id" />
+                </TreeItem>
+                <TreeItem nodeId="grayscale_exp" label="explanation">
+                    <TreeItem nodeId="grayscale_exp_1" label="generate grayscale of an image" />
+                </TreeItem>
+                <TreeItem nodeId="grayscalen_usg" label="usage">
+                    <TreeItem nodeId="grayscale_usg_1" label="img_1 = grayscale(sky);" />
                 </TreeItem>
             </TreeItem>
         </TreeView>
@@ -674,6 +688,9 @@ async function main() {
                 },
                 blank_image: function (width, height) {
                     compiler.blank_image(width, height);
+                },
+                grayscale: function (img_id) {
+                    compiler.grayscale(img_id);
                 },
             }
         };

@@ -65,11 +65,7 @@ impl ImageLibrary {
     }
 
     pub fn get_image_data(&self, image_id: i32) -> Option<&ImageData> {
-        let mut image_data: Option<&ImageData> = None;
-        if let Some(data) = self.content.get(&image_id) {
-            image_data = Some(data);
-        }
-        image_data
+        self.content.get(&image_id).clone()
     }
 
     pub fn reset(&mut self) {
@@ -94,7 +90,6 @@ impl ImageLibrary {
                 result.insert(name.clone(), new_data);
             }
         }
-
         JsValue::from_serde(&result).unwrap()
     }
 }

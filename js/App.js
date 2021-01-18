@@ -554,7 +554,7 @@ function ImageInputBar() {
     };
     return (
         <Grid container className={classes.bar}>
-            <input accept="image/*"
+            <input accept="image/*" multiple
                 className={classes.inputIcon}
                 id="image_upload" type="file" onChange={handleUpload} />
             <label htmlFor="image_upload" >
@@ -720,7 +720,7 @@ async function main() {
                 width: data.width,
                 height: data.height,
             };
-            console.log(image)
+            // console.log(image)
             observableStateStore.addOutputImage(name, image);
         }
     }

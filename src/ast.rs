@@ -10,43 +10,52 @@ use walrus::*;
 log_rule!();
 
 pub struct ItemTracker {
-    image_names: HashMap<String, (usize, bool)>,
-    image_id: usize,
+    images: HashMap<String, (usize, bool)>,
+    pub image_id: usize,
 }
 impl ItemTracker {
     pub fn new() -> ItemTracker {
         ItemTracker {
-            image_names: HashMap::new(),
+            images: HashMap::new(),
             image_id: 0,
         }
     }
-    pub fn add_image(&mut self, name: String, id: Option<usize>, export: bool) {
-        match id {
-            Some(v) => {
-                self.image_names.insert(name.clone(), (v, export));
-            }
-            None => {
-                self.image_names
-                    .insert(name.clone(), (self.image_id.clone(), export));
+    pub fn add_image(&mut self, typ: &str, name: Option<String>, id: Option<usize>, export: bool) {
+        match typ {
+            "import" => {
+                self.images.insert(
+                    name.unwrap_or_default().clone(),
+                    (self.image_id.clone(), export),
+                );
                 self.image_id += 1;
             }
+            "compile" => match id {
+                Some(id_) => {
+                    self.images
+                        .insert(name.unwrap_or_default().clone(), (id_, export));
+                }
+                None => match name {
+                    Some(n) => {
+                        self.images
+                            .insert(n.clone(), (self.image_id.clone() - 1, export));
+                    }
+                    None => {
+                        self.images
+                            .insert(self.image_id.to_string(), (self.image_id.clone(), false));
+                        self.image_id += 1;
+                    }
+                },
+            },
+            _ => {}
         }
     }
 
-    pub fn image_id_increment(&mut self) {
-        self.image_id += 1;
-    }
-
-    pub fn image_id_decrement(&mut self) {
-        self.image_id -= 1;
-    }
-
     pub fn find_image(&self, name: &String) -> Option<&(usize, bool)> {
-        self.image_names.get(name)
+        self.images.get(name)
     }
 
     pub fn get_image_names(&self) -> &HashMap<String, (usize, bool)> {
-        &self.image_names
+        &self.images
     }
 }
 
@@ -260,14 +269,23 @@ impl Compile for Expr {
                                     }
                                 }
                             }
+                            Call(ref _inside_identifier, ref _inside_exprs) => {
+                                expr.compile(
+                                    module,
+                                    builder,
+                                    local_ids,
+                                    function_ids,
+                                    variable_dependency,
+                                    item_tracker,
+                                );
+                                item_tracker.add_image("compile", None, None, true);
+                            }
                             _ => {}
                         }
                     }
 
                     builder.call(*func_id);
-                    item_tracker.image_id_increment();
-
-                    log(&format!("function {:?}({:?}) called.", identifier, exprs));
+                    item_tracker.add_image("compile", None, None, false);
                 } else {
                     log(&format!(
                         "Error: function {:?} doesn't exist. Please try using an existing function from the library.",
@@ -351,7 +369,8 @@ impl Compile for VarDef {
                                 }
                             };
                             item_tracker.add_image(
-                                self.identifier.clone(),
+                                "compile",
+                                Some(self.identifier.clone()),
                                 Some(expr_image_id),
                                 true,
                             )
@@ -394,7 +413,6 @@ impl Compile for VarDef {
             }
             Expr::Call(_ident, _exprs) => {
                 let new_id = module.locals.add(ValType::I32);
-
                 self.expr.compile(
                     module,
                     builder,
@@ -403,11 +421,10 @@ impl Compile for VarDef {
                     variable_dependency,
                     item_tracker,
                 );
+                builder.i32_const(item_tracker.image_id as i32 - 1);
                 builder.local_set(new_id);
                 local_ids.insert(self.identifier.clone(), ("Image".to_string(), new_id));
-
-                item_tracker.image_id_decrement();
-                item_tracker.add_image(self.identifier.clone(), None, true);
+                item_tracker.add_image("compile", Some(self.identifier.clone()), None, true);
             }
             _ => {
                 log(&format!(

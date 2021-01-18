@@ -41,11 +41,11 @@ impl Compiler {
 
         for (func_name, func_param) in lib_func_list.iter() {
             let params = vec![ValType::I32; func_param.len()];
-            let results = vec![ValType::I32];
-            let type_id = if let Some(t_id) = self.module.types.find(&params, &results) {
+            let result = vec![];
+            let type_id = if let Some(t_id) = self.module.types.find(&params, &result) {
                 t_id
             } else {
-                self.module.types.add(&params, &results)
+                self.module.types.add(&params, &result)
             };
             let (id, _import_id) = self.module.add_import_func("env", func_name, type_id); //?
             self.module.funcs.get_mut(id).name = Some(func_name.to_string());
@@ -67,7 +67,7 @@ impl Compiler {
             builder.local_set(new_id);
             self.local_ids
                 .insert(image_name.clone(), ("Image".to_string(), new_id));
-            item_tracker.add_image(image_name.clone(), None, false);
+            item_tracker.add_image("import", Some(image_name.clone()), None, false);
         }
     }
 

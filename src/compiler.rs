@@ -29,6 +29,7 @@ impl Compiler {
 
     fn import_lib(&mut self) {
         let mut lib_func_list: HashMap<String, Vec<String>> = HashMap::new();
+        lib_func_list.insert("logger".to_string(), vec!["Image".to_string()]);
         lib_func_list.insert(
             "darken".to_string(),
             vec!["Image".to_string(), "Number".to_string()],
@@ -41,11 +42,15 @@ impl Compiler {
 
         for (func_name, func_param) in lib_func_list.iter() {
             let params = vec![ValType::I32; func_param.len()];
-            let result = vec![];
-            let type_id = if let Some(t_id) = self.module.types.find(&params, &result) {
+            let results = if func_name == "logger" {
+                vec![]
+            } else {
+                vec![ValType::I32]
+            };
+            let type_id = if let Some(t_id) = self.module.types.find(&params, &results) {
                 t_id
             } else {
-                self.module.types.add(&params, &result)
+                self.module.types.add(&params, &results)
             };
             let (id, _import_id) = self.module.add_import_func("env", func_name, type_id); //?
             self.module.funcs.get_mut(id).name = Some(func_name.to_string());
@@ -105,10 +110,6 @@ impl Compiler {
             .unwrap()
             .add_export_names(item_tracker.get_image_names());
 
-        log(&format!(
-            "item_tracker.get_image_names(): {:?}",
-            item_tracker.get_image_names()
-        ));
         // log(&format!("program: {:?}", function));
         self.module.emit_wasm()
     }

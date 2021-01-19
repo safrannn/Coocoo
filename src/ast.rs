@@ -9,8 +9,9 @@ use walrus::*;
 
 log_rule!();
 
+#[derive(Debug)]
 pub struct ItemTracker {
-    images: HashMap<String, (usize, bool)>,
+    images: HashMap<String, (usize, bool)>, //name, (id, if export)
     pub image_id: usize,
 }
 impl ItemTracker {
@@ -200,10 +201,10 @@ impl Compile for Expr {
                 );
             }
             Variable(ref identifier) => {
-                if let Some((type_name, local_id)) = (*local_ids).get(identifier) {
-                    match type_name.as_str() {
+                if let Some((expr_type, expr_id)) = (*local_ids).get(identifier) {
+                    match expr_type.as_str() {
                         "Image" | "Number" => {
-                            builder.local_get(*local_id);
+                            builder.local_get(*expr_id);
                         }
                         _ => {
                             log(&format!(
@@ -231,42 +232,35 @@ impl Compile for Expr {
 
                     for params_index in 0..params_type.len() {
                         let expr = &exprs[params_index];
-                        let params_type = &params_type[params_index];
+                        let param_type = &params_type[params_index];
 
                         match **expr {
                             Number(n) => {
-                                //?
-                                if params_type.to_string() != "Number".to_string() {
-                                    log(&format!("Error: {:?} should have type of a Number", expr));
+                                if param_type == "Number" {
+                                    builder.i32_const(n);
                                 } else {
                                     builder.i32_const(n);
                                 }
                             }
                             Variable(ref ident) => {
-                                if let Some((expr_type, expr_id)) = (*local_ids).get(ident) {
-                                    match expr_type.as_str() {
-                                        "Image" => {
-                                            if params_type.to_string() == "Image".to_string() {
-                                                builder.local_get(*expr_id);
-                                            } else {
-                                                log(&format!(
-                                                    "Error: {:?} should have type of an Image",
-                                                    expr
-                                                ));
-                                            }
-                                        }
-                                        "Number" => {
-                                            if params_type.to_string() == "Number".to_string() {
-                                                builder.local_get(*expr_id);
-                                            } else {
-                                                log(&format!(
-                                                    "Error: {:?} should have type of a Number",
-                                                    expr
-                                                ));
-                                            }
-                                        }
-                                        _ => {}
+                                if let Some((expr_type, _)) = (*local_ids).get(ident) {
+                                    if param_type == expr_type {
+                                        expr.compile(
+                                            module,
+                                            builder,
+                                            local_ids,
+                                            function_ids,
+                                            variable_dependency,
+                                            item_tracker,
+                                        );
+                                    } else {
+                                        log(&format!(
+                                            "Error: {:?} should have type{:?}",
+                                            expr, param_type
+                                        ));
                                     }
+                                } else {
+                                    log(&format!("Error: Variable {:?} does not exist", ident));
                                 }
                             }
                             Call(ref _inside_identifier, ref _inside_exprs) => {
@@ -278,7 +272,6 @@ impl Compile for Expr {
                                     variable_dependency,
                                     item_tracker,
                                 );
-                                item_tracker.add_image("compile", None, None, true);
                             }
                             _ => {}
                         }
@@ -412,7 +405,6 @@ impl Compile for VarDef {
                 }
             }
             Expr::Call(_ident, _exprs) => {
-                let new_id = module.locals.add(ValType::I32);
                 self.expr.compile(
                     module,
                     builder,
@@ -421,7 +413,7 @@ impl Compile for VarDef {
                     variable_dependency,
                     item_tracker,
                 );
-                builder.i32_const(item_tracker.image_id as i32 - 1);
+                let new_id = module.locals.add(ValType::I32);
                 builder.local_set(new_id);
                 local_ids.insert(self.identifier.clone(), ("Image".to_string(), new_id));
                 item_tracker.add_image("compile", Some(self.identifier.clone()), None, true);
@@ -546,5 +538,12 @@ impl Compile for Function {
                 item_tracker,
             );
         }
+        // Debug use
+        // if let Some((func_id_log, _)) = function_ids.get("logger") {
+        //     for (_, (_, local_id)) in local_ids.iter() {
+        //         builder.local_get(*local_id);
+        //         builder.call(*func_id_log);
+        //     }
+        // }
     }
 }

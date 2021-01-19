@@ -35,7 +35,7 @@ class ObservableStateStore {
     imageInputFiles = new Map([]);
     imageOutputFiles = new Map([]);
     code = "";
-    consoleOutput = "";
+    consoleMessage = "";
     consoleWasm = "";
 
     constructor() {
@@ -43,7 +43,7 @@ class ObservableStateStore {
             imageInputFiles: observable,
             imageOutputFiles: observable,
             code: observable,
-            consoleOutput: observable,
+            consoleMessage: observable,
             consoleWasm: observable,
             addInputImage: action,
             renameInputImage: action,
@@ -53,7 +53,9 @@ class ObservableStateStore {
             clearOutputImage: action,
             changeCode: action,
             clearCode: action,
-            printConsoleOutput: action,
+            printConsoleMessage: action,
+            addConsoleMessage: action,
+            clearConsoleMessage: action,
             printConsoleWasm: action,
         });
     }
@@ -102,10 +104,15 @@ class ObservableStateStore {
         this.code = "";
     }
 
-    printConsoleOutput(out) {
-        this.consoleOutput = out;
+    printConsoleMessage(out) {
+        this.consoleMessage = out;
     }
-
+    addConsoleMessage(errorMessage) {
+        this.consoleMessage += errorMessage + "\n"
+    }
+    clearConsoleMessage() {
+        this.consoleMessage = "";
+    }
     printConsoleWasm(wasm) {
         this.consoleWasm = wasm;
     }
@@ -432,7 +439,7 @@ const CodeText = observer(() => {
                 <InputBase
                     id="code_text"
                     multiline
-                    rows={20}
+                    rows={10}
                     value={observableStateStore.code}
                     placeholder="Enter your code here"
                     className={classes.codeText}
@@ -457,43 +464,50 @@ function CodeConsole() {
                 <Tab icon={<BugReportIcon />} {...a11yProps(1)} className={classes.codeConsoleTab} />
             </Tabs>
             <Divider />
-            <TabPanel value={value} index={0}>
-                <CodeConsoleWasm />
-            </TabPanel>
-            <TabPanel value={value} index={1} >
+            <TabPanel value={value} index={0} >
                 <CodeConsoleMessage />
+            </TabPanel>
+            <TabPanel value={value} index={1}>
+                <CodeConsoleWasm />
             </TabPanel>
         </Grid >
     );
 }
 
-function CodeConsoleMessage() {
+const CodeConsoleMessage = observer(() => {
     const classes = useStyles();
     return (
         <form className={classes.codeText} noValidate autoComplete="off">
             <InputBase
-                id="console"
+                id="console_message"
                 multiline
                 rowsMax={11}
                 readOnly
-                value="console output"
+                value={observableStateStore.consoleMessage}
+                placeholder="console"
                 className={classes.codeText}
             />
         </form>
     );
-}
+})
+
+var console_log = console.log;
+console.log = function (message) {
+    observableStateStore.addConsoleMessage(message);
+    console_log.apply(console, arguments);
+};
 
 const CodeConsoleWasm = observer(() => {
     const classes = useStyles();
     return (
         <form className={classes.codeText} noValidate autoComplete="off">
             <InputBase
-                id="wasm_output"
+                id="console_wasm"
                 multiline
                 rowsMax={11}
                 readOnly
                 value={observableStateStore.consoleWasm}
-                placeholder="wasm_output"
+                placeholder="wasm text"
                 className={classes.codeText}
             />
         </form>
@@ -677,25 +691,32 @@ async function main() {
 
     document.getElementById('run').onclick = async function () {
         compiler.library_reset();
+        observableStateStore.clearConsoleMessage();
+
         let image_names = processImageInput();
         let output_wasm_buffer = compiler.code_to_wasm(observableStateStore.code, image_names);
+        observableStateStore.addConsoleMessage("✔ Compile finished.");
         print_wat(output_wasm_buffer);
 
         let importObject = {
             env: {
+                logger: function (arg) {
+                    console.log(arg);
+                },
                 darken: function (img_id, value) {
-                    compiler.darken(img_id, value);
+                    return compiler.darken(img_id, value)
                 },
                 blank_image: function (width, height) {
-                    compiler.blank_image(width, height);
+                    return compiler.blank_image(width, height)
                 },
                 grayscale: function (img_id) {
-                    compiler.grayscale(img_id);
+                    return compiler.grayscale(img_id)
                 },
             }
         };
         let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);//?
         instance.exports.main();
+        observableStateStore.addConsoleMessage("✔ Execution finished.");
 
         async function print_wat(buffer) {
             let w = await wabt()
@@ -710,6 +731,7 @@ async function main() {
         }
 
         export_images(compiler.library_export());
+        observableStateStore.addConsoleMessage("✔ Export finished.");
     }
 
     function export_images(result_images) {
@@ -720,7 +742,6 @@ async function main() {
                 width: data.width,
                 height: data.height,
             };
-            // console.log(image)
             observableStateStore.addOutputImage(name, image);
         }
     }

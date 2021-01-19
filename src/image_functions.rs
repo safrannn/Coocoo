@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 log_rule!();
 
 #[wasm_bindgen]
-pub fn darken(image_id: i32, value: i32) {
+pub fn darken(image_id: i32, value: i32) -> i32 {
     log(&format!(
         "paramter image_id:{:?}, value:{:?}",
         image_id, value
@@ -30,11 +30,11 @@ pub fn darken(image_id: i32, value: i32) {
         result_image_data.width,
         result_image_data.height,
         result_image_data.pixels,
-    );
+    )
 }
 
 #[wasm_bindgen]
-pub fn blank_image(width: i32, height: i32) {
+pub fn blank_image(width: i32, height: i32) -> i32 {
     let pixel_total: usize = (width * height * 4) as usize;
     let mut result_image_data: Vec<u8> = vec![0; pixel_total];
     for i in 0..pixel_total {
@@ -48,11 +48,11 @@ pub fn blank_image(width: i32, height: i32) {
     IMAGE_LIBRARY
         .lock()
         .unwrap()
-        .add_image("".to_string(), width, height, result_image_data);
+        .add_image("".to_string(), width, height, result_image_data)
 }
 
 #[wasm_bindgen]
-pub fn grayscale(image_id: i32) {
+pub fn grayscale(image_id: i32) -> i32 {
     log(&format!("paramter image_id:{:?}", image_id));
     let mut result_image_data = IMAGE_LIBRARY
         .lock()
@@ -75,5 +75,5 @@ pub fn grayscale(image_id: i32) {
         result_image_data.width,
         result_image_data.height,
         result_image_data.pixels,
-    );
+    )
 }

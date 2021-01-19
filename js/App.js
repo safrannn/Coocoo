@@ -2,13 +2,14 @@ import React, { Component } from 'react';
 import { createMuiTheme, makeStyles } from "@material-ui/core/styles";
 import {
     Box, Button, ButtonGroup, Divider, Grid, GridList, GridListTile,
-    GridListTileBar, InputBase, Modal, Tab, Tabs, TextField, Typography
+    GridListTileBar, IconButton, InputBase, Snackbar, Tab, Tabs, TextField, Typography
 } from '@material-ui/core';
+import { TreeItem, TreeView } from '@material-ui/lab';
+import MuiAlert from '@material-ui/lab/Alert';
 import PropTypes from 'prop-types';
 import { ThemeProvider } from '@material-ui/styles';
 import BugReportIcon from '@material-ui/icons/BugReport';
 import NotesIcon from '@material-ui/icons/Notes';
-import IconButton from '@material-ui/core/IconButton';
 import DeleteIcon from '@material-ui/icons/Delete';
 import MenuBookIcon from '@material-ui/icons/MenuBook';
 import SettingsOutlinedIcon from '@material-ui/icons/SettingsOutlined';
@@ -16,10 +17,8 @@ import PlayCircleFilledIcon from '@material-ui/icons/PlayCircleFilled';
 import GetAppIcon from '@material-ui/icons/GetApp';
 import PublishIcon from '@material-ui/icons/Publish';
 import RemoveCircleOutlineIcon from '@material-ui/icons/RemoveCircleOutline';
-import TreeView from '@material-ui/lab/TreeView';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import ChevronRightIcon from '@material-ui/icons/ChevronRight';
-import TreeItem from '@material-ui/lab/TreeItem';
 
 import { useLocalStore, useObserver, observer } from "mobx-react";
 import { makeObservable, observable, action, computed } from "mobx"
@@ -535,11 +534,22 @@ function ImageBlock() {
     );
 }
 
+function Alert(props) {
+    return <MuiAlert elevation={6} variant="filled" {...props} />;
+}
+
 function ImageInputBar() {
     const classes = useStyles();
+    const [open, setOpen] = React.useState(false);
+    const handleClose = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setOpen(false);
+    };
     const handleUpload = (event) => {
         [].forEach.call(event.target.files, function read_file(file) {
-            if (/\.(jpe?g|png|gif)$/i.test(file.name)) {
+            if (/.*?[^0-9].*\.(jpe?g|png|gif)$/i.test(file.name)) {
                 let imageName = file.name.split(".")[0];
                 let image = {
                     src: "",
@@ -563,23 +573,33 @@ function ImageInputBar() {
                     img.src = image.src;
                 };
                 reader.readAsDataURL(file);
+            } else {
+                setOpen(true);
             }
         });
     };
     return (
-        <Grid container className={classes.bar}>
-            <input accept="image/*" multiple
-                className={classes.inputIcon}
-                id="image_upload" type="file" onChange={handleUpload} />
-            <label htmlFor="image_upload" >
-                <IconButton component="span" id="image_upload_icon" >
-                    <PublishIcon />
-                </IconButton>
-            </label>
-            {/* <IconButton>
-                <DeleteIcon />
-            </IconButton> */}
-        </Grid>
+        <div>
+            <Grid container className={classes.bar}>
+                <input accept="image/*" multiple
+                    className={classes.inputIcon}
+                    id="image_upload" type="file" onChange={handleUpload} />
+                <label htmlFor="image_upload" >
+                    <IconButton component="span" id="image_upload_icon" >
+                        <PublishIcon />
+                    </IconButton>
+                </label>
+                {/* <IconButton>
+                    <DeleteIcon />
+                </IconButton> */}
+            </Grid>
+            <Snackbar open={open} autoHideDuration={6000} onClose={handleClose}>
+                <Alert onClose={handleClose} severity="warning">
+                    Please upload an image with non numeric file name.
+            </Alert>
+            </Snackbar>
+        </div>
+
     );
 }
 

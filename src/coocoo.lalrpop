@@ -44,8 +44,8 @@ Term: Box<Expr> = {
     "(" <Expr> ")",
 };
 
-VarDef: VarDef = {
-    <identifier:Identifier> "=" <expr:Expr> => VarDef::new(identifier, expr),
+Statement: Statement = {
+    <identifier:Identifier> "=" <expr:Expr> => Statement::VarDef(identifier, expr),
 }
 
 // Statement:Box<Statement> = {
@@ -60,7 +60,7 @@ Prototype: Prototype = {
 Semicolon<E>: Vec<E> = <v0:(<E> ";")*> => v0.into_iter().collect();
         
 Function: Function = {
-    <prototype:Prototype> "{" <vardefs:Semicolon<VarDef>> "}" => Function::new(prototype, vardefs)
+    <prototype:Prototype> "{" <statements:Semicolon<Statement>> "}" => Function::new(prototype, statements)
 };
 
 pub Program: Vec<Function> = 

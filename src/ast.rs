@@ -14,6 +14,7 @@ pub struct ItemTracker {
     images: HashMap<String, (usize, bool)>, //name, (id, if export)
     pub image_id: usize,
 }
+
 impl ItemTracker {
     pub fn new() -> ItemTracker {
         ItemTracker {
@@ -294,31 +295,27 @@ impl Compile for Expr {
 
 // #[derive(Debug)]
 #[derive(Clone)]
-pub struct VarDef {
-    pub identifier: String,
-    pub expr: Box<Expr>,
+pub enum Statement {
+    VarDef(String, Box<Expr>),
 }
 
-impl VarDef {
-    pub fn new(identifier: String, expr: Box<Expr>) -> Self {
-        VarDef { identifier, expr }
-    }
-}
+// impl VarDef {
+//     pub fn new(identifier: String, expr: Box<Expr>) -> Self {
+//         VarDef { identifier, expr }
+//     }
+// }
 
-impl Debug for VarDef {
+impl Debug for Statement {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match *self {
-            // Error => write!(fmt, "error"),
-            _ => write!(
-                fmt,
-                "identifier: {:?}, expression: {:?}",
-                self.identifier, self.expr
-            ),
+            Self::VarDef(ref identifier, ref expr) => {
+                write!(fmt, "identifier: {:?}, expression: {:?}", identifier, expr)
+            }
         }
     }
 }
 
-impl Compile for VarDef {
+impl Compile for Statement {
     fn compile(
         &self,
         module: &mut walrus::Module,
@@ -328,103 +325,111 @@ impl Compile for VarDef {
         variable_dependency: &mut HashMap<String, Vec<String>>,
         item_tracker: &mut ItemTracker,
     ) {
-        if self.identifier.parse::<i32>().is_ok() {
-            log(&format!(
-                "Error: please use a non-numeric name for a variable."
-            ));
-            return;
-        }
-        match &*(self.expr) {
-            Expr::Number(n) => {
-                builder.i32_const(*n);
-                let new_id = module.locals.add(ValType::I32);
-                builder.local_set(new_id);
-                local_ids.insert(self.identifier.to_string(), ("Number".to_string(), new_id));
-            }
-            Expr::Variable(var_right) => {
-                if let Some((var_right_type, var_right_id)) = (*local_ids).get(var_right) {
-                    match var_right_type.as_str() {
-                        "Image" => {
-                            builder.local_get(*var_right_id);
-                            let new_id = module.locals.add(ValType::I32);
-                            builder.local_set(new_id);
-                            local_ids
-                                .insert(self.identifier.to_string(), ("Image".to_string(), new_id));
+        use self::Statement::*;
+        match *self {
+            VarDef(ref identifier, ref expr) => {
+                if identifier.parse::<i32>().is_ok() {
+                    log(&format!(
+                        "Error: please use a non-numeric name for a variable."
+                    ));
+                    return;
+                }
+                match &**expr {
+                    Expr::Number(n) => {
+                        builder.i32_const(*n);
+                        let new_id = module.locals.add(ValType::I32);
+                        builder.local_set(new_id);
+                        local_ids.insert(identifier.to_string(), ("Number".to_string(), new_id));
+                    }
+                    Expr::Variable(var_right) => {
+                        if let Some((var_right_type, var_right_id)) = (*local_ids).get(var_right) {
+                            match var_right_type.as_str() {
+                                "Image" => {
+                                    builder.local_get(*var_right_id);
+                                    let new_id = module.locals.add(ValType::I32);
+                                    builder.local_set(new_id);
+                                    local_ids.insert(
+                                        identifier.to_string(),
+                                        ("Image".to_string(), new_id),
+                                    );
 
-                            let (expr_image_id, _) = match item_tracker.find_image(var_right) {
-                                Some(v) => v.clone(),
-                                None => {
-                                    log(&format!(
-                                        "None matched, var_right: {:?}, local ids:{:?}",
-                                        var_right, local_ids
-                                    ));
-                                    (0, false)
+                                    let (expr_image_id, _) =
+                                        match item_tracker.find_image(&var_right) {
+                                            Some(v) => v.clone(),
+                                            None => {
+                                                log(&format!(
+                                                    "None matched, var_right: {:?}, local ids:{:?}",
+                                                    var_right, local_ids
+                                                ));
+                                                (0, false)
+                                            }
+                                        };
+                                    item_tracker.add_image(
+                                        "compile",
+                                        Some(identifier.clone()),
+                                        Some(expr_image_id),
+                                        true,
+                                    )
                                 }
-                            };
-                            item_tracker.add_image(
-                                "compile",
-                                Some(self.identifier.clone()),
-                                Some(expr_image_id),
-                                true,
+                                "Number" => {
+                                    builder.local_get(*var_right_id);
+                                    let new_id = module.locals.add(ValType::I32);
+                                    builder.local_set(new_id);
+                                    local_ids.insert(
+                                        identifier.to_string(),
+                                        ("Number".to_string(), new_id),
+                                    );
+                                }
+                                _ => {
+                                    log(&format!(
+                                        "Error: please define {:?} with an image or number.",
+                                        var_right
+                                    ));
+                                    return;
+                                }
+                            }
+                            if variable_dependency_add(
+                                identifier.clone(),
+                                vec![var_right.clone()],
+                                variable_dependency,
                             )
-                        }
-                        "Number" => {
-                            builder.local_get(*var_right_id);
-                            let new_id = module.locals.add(ValType::I32);
-                            builder.local_set(new_id);
-                            local_ids.insert(
-                                self.identifier.to_string(),
-                                ("Number".to_string(), new_id),
-                            );
-                        }
-                        _ => {
+                            .is_err()
+                            {
+                                local_ids.remove(&identifier.clone());
+                                return;
+                            }
+                        } else {
                             log(&format!(
-                                "Error: please define {:?} with an image or number.",
-                                var_right
+                                "Error:  variable {:?} doesn't exist, please define {:?} with something else.",
+                                var_right, identifier
                             ));
                             return;
                         }
                     }
-
-                    if variable_dependency_add(
-                        self.identifier.clone(),
-                        vec![var_right.clone()],
-                        variable_dependency,
-                    )
-                    .is_err()
-                    {
-                        local_ids.remove(&self.identifier);
+                    Expr::Call(_ident, _exprs) => {
+                        expr.compile(
+                            module,
+                            builder,
+                            local_ids,
+                            function_ids,
+                            variable_dependency,
+                            item_tracker,
+                        );
+                        let new_id = module.locals.add(ValType::I32);
+                        builder.local_set(new_id);
+                        local_ids.insert(identifier.clone(), ("Image".to_string(), new_id));
+                        item_tracker.add_image("compile", Some(identifier.clone()), None, true);
+                    }
+                    _ => {
+                        log(&format!(
+                            "Error: please define {:?} with a number, image or call to a function.",
+                            identifier
+                        ));
                         return;
                     }
-                } else {
-                    log(&format!(
-                        "Error:  variable {:?} doesn't exist, please define {:?} with something else.",
-                        var_right, self.identifier
-                    ));
-                    return;
                 }
             }
-            Expr::Call(_ident, _exprs) => {
-                self.expr.compile(
-                    module,
-                    builder,
-                    local_ids,
-                    function_ids,
-                    variable_dependency,
-                    item_tracker,
-                );
-                let new_id = module.locals.add(ValType::I32);
-                builder.local_set(new_id);
-                local_ids.insert(self.identifier.clone(), ("Image".to_string(), new_id));
-                item_tracker.add_image("compile", Some(self.identifier.clone()), None, true);
-            }
-            _ => {
-                log(&format!(
-                    "Error: please define {:?} with a number, image or call to a function.",
-                    self.identifier
-                ));
-                return;
-            }
+            _ => {}
         }
     }
 }
@@ -501,11 +506,11 @@ impl Compile for Prototype {
 #[derive(Debug)]
 pub struct Function {
     pub prototype: Prototype,
-    pub vardefs: Vec<VarDef>,
+    pub vardefs: Vec<Statement>,
 }
 
 impl Function {
-    pub fn new(prototype: Prototype, vardefs: Vec<VarDef>) -> Self {
+    pub fn new(prototype: Prototype, vardefs: Vec<Statement>) -> Self {
         Function { prototype, vardefs }
     }
 }

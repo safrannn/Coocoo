@@ -61,13 +61,12 @@ pub fn grayscale(image_id: i32) -> i32 {
         .unwrap()
         .clone();
     for i in (0..result_image_data.pixels.len()).step_by(4) {
-        let value = ((result_image_data.pixels[i] as i32
-            + result_image_data.pixels[i + 1] as i32
-            + result_image_data.pixels[i + 2] as i32)
-            / 3) as u8;
-        result_image_data.pixels[i] = value;
-        result_image_data.pixels[i + 1] = value;
-        result_image_data.pixels[i + 2] = value;
+        let avg = ((result_image_data.pixels[i] as f32 * 0.2989) as i32
+            + (result_image_data.pixels[i + 1] as f32 * 0.5870) as i32
+            + (result_image_data.pixels[i + 2] as f32 * 0.1140) as i32) as u8;
+        result_image_data.pixels[i] = avg;
+        result_image_data.pixels[i + 1] = avg;
+        result_image_data.pixels[i + 2] = avg;
     }
 
     IMAGE_LIBRARY.lock().unwrap().add_image(

@@ -9,6 +9,59 @@ use walrus::*;
 
 log_rule!();
 
+pub struct Image {
+    id: i32,
+    export: bool, // if need export
+}
+
+type PBRMetalness = [Image; 11]; // diffuse, metalness, specular, normal, transparency, roughness, ambient_occlusion, displacement, emission, cavity, subsurfance_scattering
+
+pub enum Material {
+    PBRMetalMaterial(PBRMetalness),
+}
+
+pub enum Type {
+    NumberType(i32),
+    OpType(),
+    ImageType(Image),
+    MaterialType(Material),
+    CallType(String, Vec<Box<Expr>>),
+    Block(),
+}
+
+pub struct SymbolTable {
+    table: HashMap<String, (Type, i32)>, // <symbol, (type, id)>
+    index: i32,
+}
+
+impl SymbolTable {
+    pub fn new() -> Self {
+        SymbolTable {
+            table: HashMap::new(),
+            index: 0,
+        }
+    }
+
+    pub fn insert(&mut self, symbol: String, token: Type) -> i32 {
+        self.table
+            .insert(symbol.clone(), (token, self.index.clone()));
+        self.index += 1;
+        return self.index;
+    }
+
+    pub fn lookup(&self, symbol: String) -> i32 {
+        match self.table.get(&symbol) {
+            Some(v) => v.1,
+            None => -1,
+        }
+    }
+
+    pub fn free(&mut self) {
+        self.table.clear();
+        self.index = 0;
+    }
+}
+
 #[derive(Debug)]
 pub struct ItemTracker {
     images: HashMap<String, (usize, bool)>, //name, (id, if export)

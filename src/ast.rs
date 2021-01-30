@@ -1,4 +1,6 @@
 // use super::Compiler::*;
+use super::symbol::*;
+use super::util::*;
 use super::*;
 use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
@@ -8,111 +10,6 @@ use walrus::InstrSeqBuilder;
 use walrus::*;
 
 log_rule!();
-
-pub struct Image {
-    id: i32,
-    export: bool, // if need export
-}
-
-type PBRMetalness = [Image; 11]; // diffuse, metalness, specular, normal, transparency, roughness, ambient_occlusion, displacement, emission, cavity, subsurfance_scattering
-
-pub enum Material {
-    PBRMetalMaterial(PBRMetalness),
-}
-
-pub enum Type {
-    NumberType(i32),
-    OpType(),
-    ImageType(Image),
-    MaterialType(Material),
-    CallType(String, Vec<Box<Expr>>),
-    Block(),
-}
-
-pub struct SymbolTable {
-    table: HashMap<String, (Type, i32)>, // <symbol, (type, id)>
-    index: i32,
-}
-
-impl SymbolTable {
-    pub fn new() -> Self {
-        SymbolTable {
-            table: HashMap::new(),
-            index: 0,
-        }
-    }
-
-    pub fn insert(&mut self, symbol: String, token: Type) -> i32 {
-        self.table
-            .insert(symbol.clone(), (token, self.index.clone()));
-        self.index += 1;
-        return self.index;
-    }
-
-    pub fn lookup(&self, symbol: String) -> i32 {
-        match self.table.get(&symbol) {
-            Some(v) => v.1,
-            None => -1,
-        }
-    }
-
-    pub fn free(&mut self) {
-        self.table.clear();
-        self.index = 0;
-    }
-}
-
-#[derive(Debug)]
-pub struct ItemTracker {
-    images: HashMap<String, (usize, bool)>, //name, (id, if export)
-    pub image_id: usize,
-}
-
-impl ItemTracker {
-    pub fn new() -> ItemTracker {
-        ItemTracker {
-            images: HashMap::new(),
-            image_id: 0,
-        }
-    }
-    pub fn add_image(&mut self, typ: &str, name: Option<String>, id: Option<usize>, export: bool) {
-        match typ {
-            "import" => {
-                self.images.insert(
-                    name.unwrap_or_default().clone(),
-                    (self.image_id.clone(), export),
-                );
-                self.image_id += 1;
-            }
-            "compile" => match id {
-                Some(id_) => {
-                    self.images
-                        .insert(name.unwrap_or_default().clone(), (id_, export));
-                }
-                None => match name {
-                    Some(n) => {
-                        self.images
-                            .insert(n.clone(), (self.image_id.clone() - 1, export));
-                    }
-                    None => {
-                        self.images
-                            .insert(self.image_id.to_string(), (self.image_id.clone(), false));
-                        self.image_id += 1;
-                    }
-                },
-            },
-            _ => {}
-        }
-    }
-
-    pub fn find_image(&self, name: &String) -> Option<&(usize, bool)> {
-        self.images.get(name)
-    }
-
-    pub fn get_image_names(&self) -> &HashMap<String, (usize, bool)> {
-        &self.images
-    }
-}
 
 fn variable_dependency_add(
     child_name: String,
@@ -406,21 +303,20 @@ impl Compile for Statement {
                                         ("Image".to_string(), new_id),
                                     );
 
-                                    let (expr_image_id, _) =
-                                        match item_tracker.find_image(&var_right) {
-                                            Some(v) => v.clone(),
-                                            None => {
-                                                log(&format!(
-                                                    "None matched, var_right: {:?}, local ids:{:?}",
-                                                    var_right, local_ids
-                                                ));
-                                                (0, false)
-                                            }
-                                        };
+                                    let expr_image = match item_tracker.find_image(&var_right) {
+                                        Some(&v) => v.clone(),
+                                        None => {
+                                            log(&format!(
+                                                "None matched, var_right: {:?}, local ids:{:?}",
+                                                var_right, local_ids
+                                            ));
+                                            symbol::Image::new(0, false)
+                                        }
+                                    };
                                     item_tracker.add_image(
                                         "compile",
                                         Some(identifier.clone()),
-                                        Some(expr_image_id),
+                                        Some(expr_image.image_id.clone() as usize),
                                         true,
                                     )
                                 }

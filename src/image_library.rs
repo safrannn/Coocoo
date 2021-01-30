@@ -1,3 +1,4 @@
+use super::symbol::*;
 use super::*;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -73,10 +74,10 @@ impl ImageLibrary {
         self.export_items.clear();
     }
 
-    pub fn add_export_names(&mut self, output_image_names: &HashMap<String, (usize, bool)>) {
+    pub fn add_export_names(&mut self, output_image_names: &HashMap<String, symbol::Image>) {
         for (name, info) in output_image_names.iter() {
-            if info.1 {
-                self.export_items.push((info.0 as i32, name.clone()));
+            if info.export {
+                self.export_items.push((info.image_id as i32, name.clone()));
             }
         }
     }

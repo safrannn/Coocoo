@@ -1,7 +1,6 @@
 // use super::Compiler::*;
+use super::log_rule;
 use super::symbol::*;
-use super::util::*;
-use super::*;
 use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 use walrus::ir::*;
@@ -303,20 +302,20 @@ impl Compile for Statement {
                                         ("Image".to_string(), new_id),
                                     );
 
-                                    let expr_image = match item_tracker.find_image(&var_right) {
-                                        Some(&v) => v.clone(),
+                                    let expr_image_id = match item_tracker.find_image(&var_right) {
+                                        Some(&v) => v.image_id.clone(),
                                         None => {
                                             log(&format!(
                                                 "None matched, var_right: {:?}, local ids:{:?}",
                                                 var_right, local_ids
                                             ));
-                                            symbol::Image::new(0, false)
+                                            0
                                         }
                                     };
                                     item_tracker.add_image(
                                         "compile",
                                         Some(identifier.clone()),
-                                        Some(expr_image.image_id.clone() as usize),
+                                        Some(expr_image_id as usize),
                                         true,
                                     )
                                 }

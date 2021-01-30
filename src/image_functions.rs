@@ -1,5 +1,5 @@
 use super::image_library::IMAGE_LIBRARY;
-use super::*;
+use super::log_rule;
 use wasm_bindgen::prelude::*;
 
 log_rule!();

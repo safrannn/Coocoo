@@ -1,8 +1,8 @@
 use super::ast::*;
 use super::coocoo::ProgramParser;
 use super::image_library::*;
+use super::log_rule;
 use super::symbol::*;
-use super::*;
 use std::collections::HashMap;
 use walrus::FunctionId;
 use walrus::*;

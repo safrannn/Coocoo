@@ -734,7 +734,7 @@ async function main() {
                 },
             }
         };
-        let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);//?
+        let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);
         instance.exports.main();
         observableStateStore.addConsoleMessage("✔ Execution finished.");
 

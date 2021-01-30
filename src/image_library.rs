@@ -1,5 +1,5 @@
-use super::symbol::*;
-use super::*;
+use super::log_rule;
+use super::symbol;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

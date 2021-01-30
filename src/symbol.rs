@@ -18,6 +18,7 @@ impl SymbolTable {
 
     pub fn insert(&mut self, symbol: String, attr: Attribute) {
         self.table.insert(symbol.clone(), attr);
+        self.table.insert("".to_string(), Attribute::NumberAttr(0));
     }
 
     pub fn lookup(&self, symbol: String) -> Option<&Attribute> {

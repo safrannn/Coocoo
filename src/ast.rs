@@ -1,6 +1,7 @@
 // use super::Compiler::*;
 use super::log_rule;
 use super::symbol::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 use walrus::ir::*;
@@ -82,6 +83,46 @@ pub trait Compile {
         variable_dependency: &mut HashMap<String, Vec<String>>,
         item_tracker: &mut ItemTracker,
     );
+}
+
+#[derive(Copy, Clone)]
+pub enum Opcode {
+    Mul,
+    Div,
+    Add,
+    Sub,
+}
+
+impl Debug for Opcode {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
+        use self::Opcode::*;
+        match *self {
+            Mul => write!(fmt, "*"),
+            Div => write!(fmt, "/"),
+            Add => write!(fmt, "+"),
+            Sub => write!(fmt, "-"),
+        }
+    }
+}
+
+impl Compile for Opcode {
+    fn compile(
+        &self,
+        _module: &mut walrus::Module,
+        builder: &mut InstrSeqBuilder,
+        _local_ids: &mut HashMap<String, (String, LocalId)>,
+        _function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
+        _variable_dependency: &mut HashMap<String, Vec<String>>,
+        _item_tracker: &mut ItemTracker,
+    ) {
+        use self::Opcode::*;
+        match *self {
+            Mul => builder.binop(BinaryOp::I32Mul),
+            Div => builder.binop(BinaryOp::I32Mul),
+            Add => builder.binop(BinaryOp::I32Mul),
+            Sub => builder.binop(BinaryOp::I32Mul),
+        };
+    }
 }
 
 #[derive(Clone)]
@@ -246,19 +287,17 @@ impl Compile for Expr {
 #[derive(Clone)]
 pub enum Statement {
     VarDef(String, Box<Expr>),
+    Block(Vec<Statement>),
 }
-
-// impl VarDef {
-//     pub fn new(identifier: String, expr: Box<Expr>) -> Self {
-//         VarDef { identifier, expr }
-//     }
-// }
 
 impl Debug for Statement {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        match *self {
+        match &*self {
             Self::VarDef(ref identifier, ref expr) => {
                 write!(fmt, "identifier: {:?}, expression: {:?}", identifier, expr)
+            }
+            Self::Block(ref statements) => {
+                write!(fmt, "statements: {:?}", statements)
             }
         }
     }
@@ -275,7 +314,7 @@ impl Compile for Statement {
         item_tracker: &mut ItemTracker,
     ) {
         use self::Statement::*;
-        match *self {
+        match &*self {
             VarDef(ref identifier, ref expr) => {
                 if identifier.parse::<i32>().is_ok() {
                     log(&format!(
@@ -377,48 +416,32 @@ impl Compile for Statement {
                     }
                 }
             }
+            Block(statements) => {
+                for statement in statements {
+                    statement.compile(
+                        module,
+                        builder,
+                        local_ids,
+                        function_ids,
+                        variable_dependency,
+                        item_tracker,
+                    );
+                    // let mut new_function_builder = FunctionBuilder::new(&mut module.types, &vec![], &[]);
+                    // let mut new_builder = RefCell::new(new_function_builder.func_body());
+                    // builder.block(None, |mut new_builder| {
+                    //     statement.compile(
+                    //         module,
+                    //         &mut new_builder,
+                    //         local_ids,
+                    //         function_ids,
+                    //         variable_dependency,
+                    //         item_tracker,
+                    //     );
+                    // });
+                }
+            }
             _ => {}
         }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub enum Opcode {
-    Mul,
-    Div,
-    Add,
-    Sub,
-}
-
-impl Debug for Opcode {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
-        use self::Opcode::*;
-        match *self {
-            Mul => write!(fmt, "*"),
-            Div => write!(fmt, "/"),
-            Add => write!(fmt, "+"),
-            Sub => write!(fmt, "-"),
-        }
-    }
-}
-
-impl Compile for Opcode {
-    fn compile(
-        &self,
-        _module: &mut walrus::Module,
-        builder: &mut InstrSeqBuilder,
-        _local_ids: &mut HashMap<String, (String, LocalId)>,
-        _function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        _variable_dependency: &mut HashMap<String, Vec<String>>,
-        _item_tracker: &mut ItemTracker,
-    ) {
-        use self::Opcode::*;
-        match *self {
-            Mul => builder.binop(BinaryOp::I32Mul),
-            Div => builder.binop(BinaryOp::I32Mul),
-            Add => builder.binop(BinaryOp::I32Mul),
-            Sub => builder.binop(BinaryOp::I32Mul),
-        };
     }
 }
 
@@ -454,12 +477,12 @@ impl Compile for Prototype {
 #[derive(Debug)]
 pub struct Function {
     pub prototype: Prototype,
-    pub vardefs: Vec<Statement>,
+    pub block: Statement,
 }
 
 impl Function {
-    pub fn new(prototype: Prototype, vardefs: Vec<Statement>) -> Self {
-        Function { prototype, vardefs }
+    pub fn new(prototype: Prototype, block: Statement) -> Self {
+        Function { prototype, block }
     }
 }
 
@@ -481,16 +504,15 @@ impl Compile for Function {
             variable_dependency,
             item_tracker,
         );
-        for vardef in &self.vardefs {
-            vardef.compile(
-                module,
-                builder,
-                local_ids,
-                function_ids,
-                variable_dependency,
-                item_tracker,
-            );
-        }
+
+        self.block.compile(
+            module,
+            builder,
+            local_ids,
+            function_ids,
+            variable_dependency,
+            item_tracker,
+        );
         // Debug use
         // if let Some((func_id_log, _)) = function_ids.get("logger") {
         //     for (_, (_, local_id)) in local_ids.iter() {

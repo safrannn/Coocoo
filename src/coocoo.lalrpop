@@ -3,6 +3,14 @@ use crate::ast::*;
 
 grammar;
 
+// match {
+//     r"//[^\n\r]*[\n\r]*" => { }, // `// comment`
+//     r"/\*([^\*]*\*+[^\*/])*([^\*]*\*+|[^\*])*\*/" => { }, // `/* comment */`
+// }
+
+Comma<E>: Vec<E> = <v0:(<E> ",")*> <e1:E?> => v0.into_iter().chain(e1).collect();
+
+Semicolon<E>: Vec<E> = <v0:(<E> ";")*> <e1:E?> => v0.into_iter().chain(e1).collect();
 
 Number: i32 = {
     r"[-+]?[0-9]*\.?[0-9]*" => i32::from_str(<>).unwrap()
@@ -32,11 +40,6 @@ FactorOp: Opcode = {
     "/" => Opcode::Div,
 };
 
-Comma<E>: Vec<E> =
-    <v0:(<E> ",")*> <e1:E?> =>
-        v0.into_iter().chain(e1).collect();
-
-
 Term: Box<Expr> = {
     Number => Box::new(Expr::Number(<>)),
     Identifier => Box::new(Expr::Variable(<>)), 
@@ -45,24 +48,19 @@ Term: Box<Expr> = {
 };
 
 Statement: Statement = {
-    <identifier:Identifier> "=" <expr:Expr> => Statement::VarDef(identifier, expr),
+    <identifier:Identifier> "=" <expr:Expr>  => Statement::VarDef(identifier, expr),
+    "{" <statements:Semicolon<Statement>> "}" => Statement::Block(statements),
 }
 
-// Statement:Box<Statement> = {
-//     <VarDef> ";",
-//     <Term> ";",
-// }
 
 Prototype: Prototype = {
     "func" <identifier:Identifier> "(" <params:Comma<Identifier>> ")" => Prototype::new(identifier, params)
 };
-
-Semicolon<E>: Vec<E> = <v0:(<E> ";")*> => v0.into_iter().collect();
         
 Function: Function = {
-    <prototype:Prototype> "{" <statements:Semicolon<Statement>> "}" => Function::new(prototype, statements)
+    <prototype:Prototype> <block:Statement> => Function::new(prototype, block)
 };
 
-pub Program: Vec<Function> = 
-    <functions:Function*> => functions.into_iter().collect();
+pub Program: Vec<Function> = <functions:Function*> => functions.into_iter().collect();
+
 

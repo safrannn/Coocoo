@@ -3,7 +3,6 @@ mod compiler;
 mod image_functions;
 mod image_library;
 mod symbol;
-mod util;
 
 #[macro_use]
 extern crate lalrpop_util;

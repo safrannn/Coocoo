@@ -8,18 +8,30 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-    - name: Install packages
-      run: (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
-      run: cargo install-update -a
-      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+    - uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-audit
+        version: latest
+    - run: cargo audit
+    # - name: Install packages
+      # run: cargo install cargo-update
+      # run: (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
+      # run: cargo install -update -a
+      # run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
     - name: Build
-      env: RUST_BACKTRACE=1
-      run: cargo test --verbose
-      run: cargo build --verbose
+      env: 
+        RUST_BACKTRACE: 1
+      run: 
+        cargo test --verbose
+        cargo build --verbose
     - name: Install wasm-pack
-      run: wasm-pack test --chrome --headless
-      run: wasm-pack build
+      uses: jetli/wasm-pack-action@v0.3.0
+    - name: Build wasm-pack
+      run: 
+        wasm-pack test --chrome --headless
+        wasm-pack build
     - name: Node.js CI
-      run: npm install
-      run: npm run test
-      run: npm run-script build
+      run: 
+        npm install
+        npm run test
+        npm run-script build

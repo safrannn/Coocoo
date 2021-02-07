@@ -1,4 +1,3 @@
-// use super::Compiler::*;
 use super::log_rule;
 use super::symbol::*;
 use std::cell::RefCell;

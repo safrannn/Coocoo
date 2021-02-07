@@ -225,43 +225,42 @@ mod tests {
     }
 
     #[test]
-    fn rust_test4() {
-        let src = "
-            img2 = blank_image(10,20);
-        ";
-        let mut compiler = super::Compiler::new();
-        let wasm_bytes = compiler.run(src.to_string(), vec![]);
-        // (module
-        //     (type (;0;) (func))
-        //     (type (;1;) (func (param i32 i32) (result i32)))
-        //     (import "./coocoo_bg.wasm" "darken" (func (;0;) (type 1)))
-        //     (import "./coocoo_bg.wasm" "blank_image" (func (;1;) (type 1)))
-        //     (func (;2;) (type 0))
-        //     (export "main" (func 2)))
+    // fn rust_test4() {
+    //     let src = "
+    //         img2 = blank_image(10,20);
+    //     ";
+    //     let mut compiler = super::Compiler::new();
+    //     let wasm_bytes = compiler.run(src.to_string(), vec![]);
+    //     // (module
+    //     //     (type (;0;) (func))
+    //     //     (type (;1;) (func (param i32 i32) (result i32)))
+    //     //     (import "./coocoo_bg.wasm" "darken" (func (;0;) (type 1)))
+    //     //     (import "./coocoo_bg.wasm" "blank_image" (func (;1;) (type 1)))
+    //     //     (func (;2;) (type 0))
+    //     //     (export "main" (func 2)))
 
-        let blank_image = move |width: i32, height: i32| -> i32 { width + height };
-        let darken = move |width: i32, height: i32| -> i32 { width + height };
-        let import_object = wasmer_runtime::imports! {
-            "env" => {
-                "blank_image" => func!(blank_image),
-                "darken" => func!(darken),
-            },
-        };
-        let instance = match wasmer_runtime::instantiate(&wasm_bytes, &import_object) {
-            Ok(result) => result,
-            Err(e) => {
-                dbg!(e);
-                panic!();
-            }
-        };
+    //     let blank_image = move |width: i32, height: i32| -> i32 { width + height };
+    //     let import_object = wasmer_runtime::imports! {
+    //         "env" => {
+    //             "blank_image" => func!(blank_image),
+    //         },
+    //     };
+    //     let instance = match wasmer_runtime::instantiate(&wasm_bytes, &import_object) {
+    //         Ok(result) => result,
+    //         Err(e) => {
+    //             dbg!(e);
+    //             panic!();
+    //         }
+    //     };
 
-        let main: Func = match instance.exports.get("main") {
-            Ok(result) => result,
-            Err(e) => panic!(e),
-        };
-        let _result = match main.call() {
-            Ok(r) => r,
-            Err(e) => panic!(e),
-        };
-    }
+    //     let main: Func = match instance.exports.get("main") {
+    //         Ok(result) => result,
+    //         Err(e) => panic!(e),
+    //     };
+
+    //     let _result = match main.call() {
+    //         Ok(r) => r,
+    //         Err(e) => panic!(e),
+    //     };
+    // }
 }

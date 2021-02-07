@@ -52,7 +52,6 @@ Statement: Statement = {
     "{" <statements:Semicolon<Statement>> "}" => Statement::Block(statements),
 }
 
-
 Prototype: Prototype = {
     "func" <identifier:Identifier> "(" <params:Comma<Identifier>> ")" => Prototype::new(identifier, params)
 };

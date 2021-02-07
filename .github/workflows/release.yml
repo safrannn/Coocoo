@@ -6,32 +6,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-    - uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-audit
-        version: latest
-    - run: cargo audit
-    # - name: Install packages
-      # run: cargo install cargo-update
-      # run: (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
-      # run: cargo install -update -a
-      # run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
-    - name: Build
-      env: 
-        RUST_BACKTRACE: 1
-      run: 
-        cargo test --verbose
-        cargo build --verbose
-    - name: Install wasm-pack
-      uses: jetli/wasm-pack-action@v0.3.0
-    - name: Build wasm-pack
-      run: 
-        wasm-pack test --chrome --headless
-        wasm-pack build
-    - name: Node.js CI
-      run: 
-        npm install
-        npm run test
-        npm run-script build
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-audit
+          version: latest
+      # - name: Install packages
+        # run: cargo install cargo-update
+        # run: (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
+        # run: cargo install -update -a
+        # run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+      - name: Build
+        env: 
+          RUST_BACKTRACE: 1
+        run: 
+          cargo test --verbose
+          cargo build --verbose
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.3.0
+      - name: Build wasm-pack
+        run: 
+          wasm-pack test --chrome --headless
+          wasm-pack build
+      - name: Node.js CI
+        run: 
+          npm install
+          npm run test
+          npm run-script build

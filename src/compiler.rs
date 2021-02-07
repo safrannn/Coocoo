@@ -224,7 +224,7 @@ mod tests {
         log(&format!("Result: {:?}", result));
     }
 
-    #[test]
+    // #[test]
     // fn rust_test4() {
     //     let src = "
     //         img2 = blank_image(10,20);

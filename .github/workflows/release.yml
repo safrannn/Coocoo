@@ -20,17 +20,17 @@ jobs:
       - name: Build
         env: 
           RUST_BACKTRACE: 1
-        run: 
+        run: |
           cargo test --verbose
           cargo build --verbose
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.3.0
       - name: Build wasm-pack
-        run: 
+        run: |
           wasm-pack test --chrome --headless
           wasm-pack build
       - name: Node.js CI
-        run: 
+        run: |
           npm install
           npm run test
           npm run-script build

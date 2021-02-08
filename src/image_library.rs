@@ -74,25 +74,17 @@ impl ImageLibrary {
         self.export_items.clear();
     }
 
-    pub fn add_export_names(&mut self, output_image_names: &HashMap<String, symbol::Image>) {
-        for (name, info) in output_image_names.iter() {
-            if info.export {
-                self.export_items.push((info.image_id as i32, name.clone()));
-            }
-        }
-    }
-
-    pub fn export(&mut self) -> JsValue {
-        let mut result: HashMap<String, ImageData> = HashMap::new();
-        for (id, name) in self.export_items.iter() {
-            if let Some(data) = self.content.get_mut(id) {
-                let mut new_data = data.clone();
-                new_data.name = name.clone();
-                result.insert(name.clone(), new_data);
-            }
-        }
-        JsValue::from_serde(&result).unwrap()
-    }
+    // pub fn export(&mut self) -> JsValue {
+    //     let mut result: HashMap<String, ImageData> = HashMap::new();
+    //     for (id, name) in self.export_items.iter() {
+    //         if let Some(data) = self.content.get_mut(id) {
+    //             let mut new_data = data.clone();
+    //             new_data.name = name.clone();
+    //             result.insert(name.clone(), new_data);
+    //         }
+    //     }
+    //     JsValue::from_serde(&result).unwrap()
+    // }
 }
 
 lazy_static! {
@@ -108,10 +100,10 @@ pub fn library_add_image(name: String, width: i32, height: i32, data: Vec<u8>) {
         .add_image(name, width, height, data);
 }
 
-#[wasm_bindgen]
-pub fn library_export() -> JsValue {
-    IMAGE_LIBRARY.lock().unwrap().export()
-}
+// #[wasm_bindgen]
+// pub fn library_export() -> JsValue {
+//     IMAGE_LIBRARY.lock().unwrap().export()
+// }
 
 #[wasm_bindgen]
 pub fn library_reset() {

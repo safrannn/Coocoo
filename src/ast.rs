@@ -1,87 +1,19 @@
 use super::log_rule;
 use super::symbol::*;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::{Debug, Error, Formatter};
 use walrus::ir::*;
-use walrus::FunctionId;
 use walrus::InstrSeqBuilder;
 use walrus::*;
 
 log_rule!();
-
-fn variable_dependency_add(
-    child_name: String,
-    parents_name: Vec<String>,
-    variable_dependency: &mut HashMap<String, Vec<String>>,
-) -> Result<String, String> {
-    let dpd = variable_dependency
-        .entry(child_name.clone())
-        .or_insert(vec![]);
-    for d in parents_name {
-        dpd.push(d.clone());
-    }
-    let result = variable_dependency_check(child_name.clone(), variable_dependency);
-    if result.is_err() {
-        return Err("err".to_string());
-    } else {
-        return Ok("ok".to_string());
-    }
-}
-
-fn variable_dependency_check(
-    name: String,
-    variable_dependency: &HashMap<String, Vec<String>>,
-) -> Result<(), Vec<String>> {
-    let mut visited: HashMap<String, bool> = HashMap::new();
-    let mut cycle: Vec<String> = vec![];
-    if variable_has_cycle(name, &mut visited, variable_dependency, &mut cycle) {
-        log(&format!(
-            "Error: Cycle detected in variables, involving {:?}",
-            cycle
-        ));
-        return Err(cycle);
-    }
-    Ok(())
-}
-
-fn variable_has_cycle(
-    name: String,
-    visited: &mut HashMap<String, bool>,
-    variable_dependency: &HashMap<String, Vec<String>>,
-    cycle: &mut Vec<String>,
-) -> bool {
-    if let Some(&k) = visited.get(&name) {
-        if k {
-            cycle.push(name.clone());
-        }
-        return k;
-    }
-    let v = visited.entry(name.clone()).or_insert(true);
-    *v = true;
-
-    if let Some(children) = variable_dependency.get(&name) {
-        for child in children {
-            if variable_has_cycle((*child).clone(), visited, variable_dependency, cycle) {
-                return true;
-            }
-        }
-    }
-    let v = visited.get_mut(&(name.clone())).unwrap();
-    *v = false;
-    false
-}
 
 pub trait Compile {
     fn compile(
         &self,
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
-        local_ids: &mut HashMap<String, (String, LocalId)>,
-        function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        variable_dependency: &mut HashMap<String, Vec<String>>,
-        item_tracker: &mut ItemTracker,
-    );
+        symbol_table: &mut SymbolTable,
+    ) -> Result<(), &'static str>;
 }
 
 #[derive(Copy, Clone)]
@@ -109,17 +41,26 @@ impl Compile for Opcode {
         &self,
         _module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
-        _local_ids: &mut HashMap<String, (String, LocalId)>,
-        _function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        _variable_dependency: &mut HashMap<String, Vec<String>>,
-        _item_tracker: &mut ItemTracker,
-    ) {
+        symbol_table: &mut SymbolTable,
+    ) -> Result<(), &'static str> {
         use self::Opcode::*;
         match *self {
-            Mul => builder.binop(BinaryOp::I32Mul),
-            Div => builder.binop(BinaryOp::I32Mul),
-            Add => builder.binop(BinaryOp::I32Mul),
-            Sub => builder.binop(BinaryOp::I32Mul),
+            Mul => {
+                builder.binop(BinaryOp::I32Mul);
+                return Ok(());
+            }
+            Div => {
+                builder.binop(BinaryOp::I32DivS);
+                return Ok(());
+            }
+            Add => {
+                builder.binop(BinaryOp::I32Add);
+                return Ok(());
+            }
+            Sub => {
+                builder.binop(BinaryOp::I32Sub);
+                return Ok(());
+            }
         };
     }
 }
@@ -154,131 +95,117 @@ impl Compile for Expr {
         &self,
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
-        local_ids: &mut HashMap<String, (String, LocalId)>,
-        function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        variable_dependency: &mut HashMap<String, Vec<String>>,
-        item_tracker: &mut ItemTracker,
-    ) {
+        symbol_table: &mut SymbolTable,
+    ) -> Result<(), &'static str> {
         use self::Expr::*;
         match *self {
             Number(n) => {
                 builder.i32_const(n);
+                return Ok(());
             }
             Op(ref l, op, ref r) => {
-                l.compile(
-                    module,
-                    builder,
-                    local_ids,
-                    function_ids,
-                    variable_dependency,
-                    item_tracker,
-                );
-                r.compile(
-                    module,
-                    builder,
-                    local_ids,
-                    function_ids,
-                    variable_dependency,
-                    item_tracker,
-                );
-                op.compile(
-                    module,
-                    builder,
-                    local_ids,
-                    function_ids,
-                    variable_dependency,
-                    item_tracker,
-                );
+                l.compile(module, builder, symbol_table);
+                r.compile(module, builder, symbol_table);
+                op.compile(module, builder, symbol_table);
+                return Ok(());
             }
             Variable(ref identifier) => {
-                if let Some((expr_type, expr_id)) = (*local_ids).get(identifier) {
-                    match expr_type.as_str() {
-                        "Image" | "Number" => {
-                            builder.local_get(*expr_id);
+                if let Some(attr) = symbol_table.lookup(identifier) {
+                    match attr {
+                        Attribute::Image(local_id, _) | Attribute::Material(local_id, _) => {
+                            builder.local_get(*local_id);
+                            return Ok(());
                         }
                         _ => {
                             log(&format!(
                                 "Error: variable {:?} is neither an image nor a number.",
                                 identifier
                             ));
-                            return;
+                            return Err("Error");
                         }
                     }
                 } else {
                     log(&format!("Error:  variable {:?} doesn't exist.", identifier));
+                    return Err("Error");
                 }
             }
             Call(ref identifier, ref exprs) => {
-                if let Some((func_id, params_type)) = function_ids.get(identifier) {
-                    if exprs.len() != params_type.len() {
-                        log(&format!(
-                            "Error: function {:?} should take {:?} parameters instead of {:?} ",
-                            identifier,
-                            params_type.len(),
-                            exprs.len()
-                        ));
-                        return;
-                    }
-
-                    for params_index in 0..params_type.len() {
-                        let expr = &exprs[params_index];
-                        let param_type = &params_type[params_index];
-
-                        match **expr {
-                            Number(n) => {
-                                if param_type == "Number" {
-                                    builder.i32_const(n);
-                                } else {
-                                    builder.i32_const(n);
-                                }
-                            }
-                            Variable(ref ident) => {
-                                if let Some((expr_type, _)) = (*local_ids).get(ident) {
-                                    if param_type == expr_type {
-                                        expr.compile(
-                                            module,
-                                            builder,
-                                            local_ids,
-                                            function_ids,
-                                            variable_dependency,
-                                            item_tracker,
-                                        );
-                                    } else {
-                                        log(&format!(
-                                            "Error: {:?} should have type{:?}",
-                                            expr, param_type
-                                        ));
-                                    }
-                                } else {
-                                    log(&format!("Error: Variable {:?} does not exist", ident));
-                                }
-                            }
-                            Call(ref _inside_identifier, ref _inside_exprs) => {
-                                expr.compile(
-                                    module,
-                                    builder,
-                                    local_ids,
-                                    function_ids,
-                                    variable_dependency,
-                                    item_tracker,
-                                );
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    builder.call(*func_id);
-                    item_tracker.add_image("compile", None, None, false);
-                } else {
+                if symbol_table.lookup(identifier).is_none() {
                     log(&format!(
                         "Error: function {:?} doesn't exist. Please try using an existing function from the library.",
                         identifier
                     ));
-                    return;
+                    return Err("Error");
+                };
+                let attr = symbol_table.lookup(identifier).unwrap();
+
+                match attr {
+                    Attribute::Func(func_id, arguments, _) => {
+                        let arguments = arguments.clone();
+                        if exprs.len() != arguments.len() {
+                            log(&format!(
+                                "Error: function {:?} should take {:?} parameters instead of {:?} ",
+                                identifier,
+                                arguments.len(),
+                                exprs.len()
+                            ));
+                            return Ok(());
+                        }
+                        for i in 0..exprs.len() {
+                            let expr = &*exprs[i];
+                            let argument_tp = arguments[i];
+                            match expr {
+                                Number(_) | Call(_, _) | Op(_, _, _) => {
+                                    let expr_compile_result =
+                                        expr.compile(module, builder, symbol_table);
+                                    if !expr_compile_result.is_ok() {
+                                        return expr_compile_result;
+                                    }
+                                }
+                                Variable(ref var_ident) => {
+                                    if let Some(attr) = symbol_table.lookup(var_ident) {
+                                        if argument_tp == walrus::ValType::I32 {
+                                            match attr {
+                                                Attribute::Image(_, _) | Attribute::Number(_) => {
+                                                    let expr_compile_result =
+                                                        expr.compile(module, builder, symbol_table);
+                                                    if !expr_compile_result.is_ok() {
+                                                        return expr_compile_result;
+                                                    }
+                                                }
+                                                _ => {
+                                                    log(&format!(
+                                                        "Error: {:?} has a wrong type",
+                                                        expr
+                                                    ));
+                                                    return Err("Error");
+                                                }
+                                            }
+                                        } else {
+                                            log(&format!("Error: {:?} has a wrong type", expr));
+                                            return Err("Error");
+                                        }
+                                    } else {
+                                        log(&format!(
+                                            "Error: Variable {:?} does not exist",
+                                            var_ident
+                                        ));
+                                        return Err("Error");
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        builder.call(*func_id);
+                        symbol_table.library_tracker.add_image(None, None);
+                        return Ok(());
+                    }
+                    _ => {}
                 }
             }
             _ => {}
         }
+        return Ok(());
     }
 }
 
@@ -307,11 +234,8 @@ impl Compile for Statement {
         &self,
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
-        local_ids: &mut HashMap<String, (String, LocalId)>,
-        function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        variable_dependency: &mut HashMap<String, Vec<String>>,
-        item_tracker: &mut ItemTracker,
-    ) {
+        symbol_table: &mut SymbolTable,
+    ) -> Result<(), &'static str> {
         use self::Statement::*;
         match &*self {
             VarDef(ref identifier, ref expr) => {
@@ -319,127 +243,117 @@ impl Compile for Statement {
                     log(&format!(
                         "Error: please use a non-numeric name for a variable."
                     ));
-                    return;
+                    return Err(&format!(
+                        "Error: please use a non-numeric name for a variable."
+                    ));
                 }
-                match &**expr {
-                    Expr::Number(n) => {
-                        builder.i32_const(*n);
-                        let new_id = module.locals.add(ValType::I32);
-                        builder.local_set(new_id);
-                        local_ids.insert(identifier.to_string(), ("Number".to_string(), new_id));
+                let expr = &**expr;
+                match expr {
+                    Expr::Number(_) | Expr::Op(_, _, _) => {
+                        let expr_compile_result = expr.compile(module, builder, symbol_table);
+                        if expr_compile_result.is_ok() {
+                            let local_id = module.locals.add(ValType::I32);
+                            builder.local_set(local_id);
+                            symbol_table
+                                .insert(identifier.to_string(), Attribute::Number(local_id));
+                            return Ok(());
+                        } else {
+                            return expr_compile_result;
+                        };
                     }
                     Expr::Variable(var_right) => {
-                        if let Some((var_right_type, var_right_id)) = (*local_ids).get(var_right) {
-                            match var_right_type.as_str() {
-                                "Image" => {
-                                    builder.local_get(*var_right_id);
-                                    let new_id = module.locals.add(ValType::I32);
-                                    builder.local_set(new_id);
-                                    local_ids.insert(
-                                        identifier.to_string(),
-                                        ("Image".to_string(), new_id),
+                        if let Some(attr) = symbol_table.lookup(&var_right) {
+                            match attr {
+                                Attribute::Number(var_right_local_id) => {
+                                    builder.local_get(*var_right_local_id);
+                                    let local_id = module.locals.add(ValType::I32);
+                                    builder.local_set(local_id);
+                                    symbol_table.insert(
+                                        identifier.clone(),
+                                        Attribute::Number(*var_right_local_id),
                                     );
-
-                                    let expr_image_id = match item_tracker.find_image(&var_right) {
-                                        Some(&v) => v.image_id.clone(),
-                                        None => {
-                                            log(&format!(
-                                                "None matched, var_right: {:?}, local ids:{:?}",
-                                                var_right, local_ids
-                                            ));
-                                            0
-                                        }
-                                    };
-                                    item_tracker.add_image(
-                                        "compile",
-                                        Some(identifier.clone()),
-                                        Some(expr_image_id as usize),
-                                        true,
-                                    )
+                                    return Ok(());
                                 }
-                                "Number" => {
-                                    builder.local_get(*var_right_id);
-                                    let new_id = module.locals.add(ValType::I32);
-                                    builder.local_set(new_id);
-                                    local_ids.insert(
-                                        identifier.to_string(),
-                                        ("Number".to_string(), new_id),
+                                Attribute::Image(var_right_local_id, image_info) => {
+                                    builder.local_get(*var_right_local_id);
+                                    let local_id = module.locals.add(ValType::I32);
+                                    builder.local_set(local_id);
+                                    symbol_table.insert(
+                                        identifier.clone(),
+                                        Attribute::Image(*var_right_local_id, None),
                                     );
+                                    return Ok(());
+                                }
+                                Attribute::Material(_, _) => {
+                                    return Ok(());
                                 }
                                 _ => {
-                                    log(&format!(
-                                        "Error: please define {:?} with an image or number.",
-                                        var_right
-                                    ));
-                                    return;
+                                    return Ok(());
                                 }
-                            }
-                            if variable_dependency_add(
-                                identifier.clone(),
-                                vec![var_right.clone()],
-                                variable_dependency,
-                            )
-                            .is_err()
-                            {
-                                local_ids.remove(&identifier.clone());
-                                return;
                             }
                         } else {
                             log(&format!(
                                 "Error:  variable {:?} doesn't exist, please define {:?} with something else.",
                                 var_right, identifier
                             ));
-                            return;
+                            return Err("Error");
                         }
                     }
-                    Expr::Call(_ident, _exprs) => {
-                        expr.compile(
-                            module,
-                            builder,
-                            local_ids,
-                            function_ids,
-                            variable_dependency,
-                            item_tracker,
-                        );
-                        let new_id = module.locals.add(ValType::I32);
-                        builder.local_set(new_id);
-                        local_ids.insert(identifier.clone(), ("Image".to_string(), new_id));
-                        item_tracker.add_image("compile", Some(identifier.clone()), None, true);
+                    Expr::Call(func_ident, _exprs) => {
+                        if let Some(Attribute::Func(_, _, returns)) =
+                            symbol_table.lookup(&func_ident)
+                        {
+                            let call_compile_result = expr.compile(module, builder, symbol_table);
+                            if call_compile_result.is_ok() {
+                                if *returns == vec![ValType::I32] {
+                                    let local_id = module.locals.add(ValType::I32);
+                                    builder.local_set(local_id);
+                                    symbol_table.insert(
+                                        identifier.clone(),
+                                        Attribute::Image(local_id, None),
+                                    );
+                                    symbol_table
+                                        .library_tracker
+                                        .add_image(Some(identifier.clone()), None);
+                                    return Ok(());
+                                } else {
+                                    return call_compile_result;
+                                }
+                            } else {
+                                return call_compile_result;
+                            }
+                        } else {
+                            return Err("Error");
+                        }
                     }
                     _ => {
                         log(&format!(
                             "Error: please define {:?} with a number, image or call to a function.",
                             identifier
                         ));
-                        return;
+                        return Err("Error");
                     }
                 }
             }
             Block(statements) => {
                 for statement in statements {
-                    statement.compile(
-                        module,
-                        builder,
-                        local_ids,
-                        function_ids,
-                        variable_dependency,
-                        item_tracker,
-                    );
-                    // let mut new_function_builder = FunctionBuilder::new(&mut module.types, &vec![], &[]);
-                    // let mut new_builder = RefCell::new(new_function_builder.func_body());
-                    // builder.block(None, |mut new_builder| {
-                    //     statement.compile(
-                    //         module,
-                    //         &mut new_builder,
-                    //         local_ids,
-                    //         function_ids,
-                    //         variable_dependency,
-                    //         item_tracker,
-                    //     );
-                    // });
+                    let statement_compile_result = statement.compile(module, builder, symbol_table);
+                    if statement_compile_result.is_ok() {
+                        // let mut new_function_builder =
+                        //     FunctionBuilder::new(&mut module.types, &vec![], &[]);
+                        // let mut new_builder = RefCell::new(new_function_builder.func_body());
+                        builder.block(InstrSeqType::Simple(Option::None), |builder| {
+                            statement.compile(module, builder, symbol_table);
+                        });
+                    } else {
+                        return statement_compile_result;
+                    }
                 }
+                return Ok(());
             }
-            _ => {}
+            _ => {
+                return Ok(());
+            }
         }
     }
 }
@@ -461,15 +375,9 @@ impl Compile for Prototype {
         &self,
         _module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
-        local_ids: &mut HashMap<String, (String, LocalId)>,
-        _function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        _variable_dependency: &mut HashMap<String, Vec<String>>,
-        _item_tracker: &mut ItemTracker,
-    ) {
-        for param in &self.params {
-            let (_, id) = local_ids[param]; //?
-            builder.local_set(id); //?
-        }
+        symbol_table: &mut SymbolTable,
+    ) -> Result<(), &'static str> {
+        return Ok(());
     }
 }
 
@@ -490,34 +398,12 @@ impl Compile for Function {
         &self,
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
-        local_ids: &mut HashMap<String, (String, LocalId)>,
-        function_ids: &HashMap<String, (FunctionId, Vec<String>)>,
-        variable_dependency: &mut HashMap<String, Vec<String>>,
-        item_tracker: &mut ItemTracker,
-    ) {
-        self.prototype.compile(
-            module,
-            builder,
-            local_ids,
-            function_ids,
-            variable_dependency,
-            item_tracker,
-        );
+        symbol_table: &mut SymbolTable,
+    ) -> Result<(), &'static str> {
+        self.prototype.compile(module, builder, symbol_table);
 
-        self.block.compile(
-            module,
-            builder,
-            local_ids,
-            function_ids,
-            variable_dependency,
-            item_tracker,
-        );
-        // Debug use
-        // if let Some((func_id_log, _)) = function_ids.get("logger") {
-        //     for (_, (_, local_id)) in local_ids.iter() {
-        //         builder.local_get(*local_id);
-        //         builder.call(*func_id_log);
-        //     }
-        // }
+        let block_compile_result = self.block.compile(module, builder, symbol_table);
+
+        return block_compile_result;
     }
 }

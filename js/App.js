@@ -12,7 +12,6 @@ import BugReportIcon from '@material-ui/icons/BugReport';
 import NotesIcon from '@material-ui/icons/Notes';
 import DeleteIcon from '@material-ui/icons/Delete';
 import MenuBookIcon from '@material-ui/icons/MenuBook';
-import SettingsOutlinedIcon from '@material-ui/icons/SettingsOutlined';
 import PlayCircleFilledIcon from '@material-ui/icons/PlayCircleFilled';
 import GetAppIcon from '@material-ui/icons/GetApp';
 import PublishIcon from '@material-ui/icons/Publish';
@@ -750,7 +749,7 @@ async function main() {
             observableStateStore.printConsoleWasm(wat);
         }
 
-        export_images(compiler.library_export());
+        // export_images(compiler.library_export());
         observableStateStore.addConsoleMessage("✔ Export finished.");
     }
 

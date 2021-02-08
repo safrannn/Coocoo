@@ -5,24 +5,33 @@ use std::collections::HashMap;
 
 log_rule!();
 
+#[derive(Clone)]
 pub struct SymbolTable {
     table: HashMap<String, Attribute>,
+    pub library_tracker: LibraryTracker,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         SymbolTable {
             table: HashMap::new(),
+            library_tracker: LibraryTracker::new(),
         }
     }
 
-    pub fn insert(&mut self, symbol: String, attr: Attribute) {
-        self.table.insert(symbol.clone(), attr);
-        self.table.insert("".to_string(), Attribute::NumberAttr(0));
+    pub fn insert(&mut self, ident: String, attr: Attribute) {
+        match attr {
+            Attribute::Image(_, image) => {
+                self.library_tracker
+                    .add_image(Some(ident.clone()), image.clone());
+            }
+            _ => {}
+        }
+        self.table.insert(ident.clone(), attr);
     }
 
-    pub fn lookup(&self, symbol: String) -> Option<&Attribute> {
-        self.table.get(&symbol)
+    pub fn lookup(&self, ident: &String) -> Option<&Attribute> {
+        self.table.get(ident)
     }
 
     pub fn free(&mut self) {
@@ -30,90 +39,83 @@ impl SymbolTable {
     }
 }
 
+#[derive(Clone)]
 pub enum Attribute {
-    NumberAttr(i32),
-    OpAttr(Box<Expr>, Opcode, Box<Expr>), //left, op, right
-    ImageAttr(Id<walrus::Local>, Image),  // name, local_id, image info
-    MaterialAttr(Id<walrus::Local>, i32, Material), //array length, material info
-    CallAttr(Id<walrus::Function>, Vec<Box<Expr>>, Vec<Box<Expr>>), //func_id, params, return
+    Number(Id<walrus::Local>),
+    Image(Id<walrus::Local>, Option<Image>), // local_id, image info
+    Material(Id<walrus::Local>, Material),   // local_id, material info
+    Func(
+        id_arena::Id<walrus::Function>,
+        Vec<walrus::ValType>,
+        Vec<walrus::ValType>,
+    ), //func_id, arguments, return
+    Empty(),
     Error(),
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #[derive(Clone, Copy)]
 pub struct Image {
-    pub image_id: i32,
-    pub export: bool, // if need export
+    pub id: i32,
 }
 
 impl Image {
-    pub fn new(image_id_: i32, export_: bool) -> Self {
+    pub fn new(image_id_: i32) -> Self {
+        return Image { id: image_id_ };
+    }
+
+    pub fn copy(&self) -> Image {
         return Image {
-            image_id: image_id_,
-            export: export_,
+            id: self.id.clone(),
         };
     }
 }
 
-pub struct ItemTracker {
-    images: HashMap<String, Image>, //name, (id, if export)
-    pub image_id: usize,
+#[derive(Clone)]
+pub struct LibraryTracker {
+    images: HashMap<String, Image>,
+    pub next_image_id: i32,
+    material: HashMap<String, Material>,
 }
 
-impl ItemTracker {
-    pub fn new() -> ItemTracker {
-        ItemTracker {
+impl LibraryTracker {
+    pub fn new() -> LibraryTracker {
+        LibraryTracker {
             images: HashMap::new(),
-            image_id: 0,
+            next_image_id: 0,
+            material: HashMap::new(),
         }
     }
-    pub fn add_image(&mut self, typ: &str, name: Option<String>, id: Option<usize>, export: bool) {
-        match typ {
-            "import" => {
-                self.images.insert(
-                    name.unwrap_or_default().clone(),
-                    Image::new(self.image_id.clone() as i32, export),
-                );
-                self.image_id += 1;
+
+    pub fn add_image(&mut self, name: Option<String>, image: Option<Image>) {
+        if name.is_some() && image.is_some() {
+            let id = image.unwrap().id;
+            self.images.insert(name.unwrap().clone(), Image::new(id));
+            if id >= self.next_image_id {
+                self.next_image_id += 1;
             }
-            "compile" => match id {
-                Some(id_) => {
-                    self.images.insert(
-                        name.unwrap_or_default().clone(),
-                        Image::new(id_ as i32, export),
-                    );
-                }
-                None => match name {
-                    Some(n) => {
-                        self.images.insert(
-                            n.clone(),
-                            Image::new((self.image_id.clone() - 1) as i32, export),
-                        );
-                    }
-                    None => {
-                        self.images.insert(
-                            self.image_id.to_string(),
-                            Image::new(self.image_id.clone() as i32, false),
-                        );
-                        self.image_id += 1;
-                    }
-                },
-            },
-            _ => {}
+        } else if name.is_some() && image.is_none() {
+            self.images.insert(
+                name.unwrap().clone(),
+                Image::new(self.next_image_id.clone() - 1),
+            );
+        } else if name.is_none() && image.is_none() {
+            self.images.insert(
+                self.next_image_id.to_string(),
+                Image::new(self.next_image_id.clone()),
+            );
+            self.next_image_id += 1;
         }
     }
 
     pub fn find_image(&self, name: &String) -> Option<&Image> {
         self.images.get(name)
     }
-
-    pub fn get_image_names(&self) -> &HashMap<String, Image> {
-        &self.images
-    }
 }
 
 type PBRMetalness = [Image; 11]; // diffuse, metalness, specular, normal, transparency, roughness, ambient_occlusion, displacement, emission, cavity, subsurfance_scattering
 
+#[derive(Clone, Copy)]
 pub enum Material {
     PBRMetalMaterial(PBRMetalness),
 }

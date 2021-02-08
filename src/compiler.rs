@@ -14,8 +14,7 @@ log_rule!();
 pub struct Compiler {
     module: walrus::Module,
     src: String,
-    function_ids: HashMap<String, (FunctionId, Vec<String>)>,
-    local_ids: HashMap<String, (String, LocalId)>,
+    symbol_table: SymbolTable,
 }
 
 impl Compiler {
@@ -23,40 +22,27 @@ impl Compiler {
         Compiler {
             module: walrus::Module::with_config(ModuleConfig::new()),
             src: "".to_string(),
-            function_ids: HashMap::new(),
-            local_ids: HashMap::new(),
+            symbol_table: SymbolTable::new(),
         }
     }
 
-    fn import_lib(&mut self) {
-        let mut lib_func_list: HashMap<String, Vec<String>> = HashMap::new();
-        lib_func_list.insert("logger".to_string(), vec!["Image".to_string()]);
-        lib_func_list.insert(
-            "darken".to_string(),
-            vec!["Image".to_string(), "Number".to_string()],
-        );
-        lib_func_list.insert(
-            "blank_image".to_string(),
-            vec!["Number".to_string(), "Number".to_string()],
-        );
-        lib_func_list.insert("grayscale".to_string(), vec!["Image".to_string()]);
-
-        for (func_name, func_param) in lib_func_list.iter() {
-            let params = vec![ValType::I32; func_param.len()];
-            let results = if func_name == "logger" {
-                vec![]
-            } else {
-                vec![ValType::I32]
-            };
-            let type_id = if let Some(t_id) = self.module.types.find(&params, &results) {
+    fn import_lib(&mut self, symbol_table: &mut SymbolTable) {
+        let lib_func_list = library_function_list();
+        for (name, (args, result)) in lib_func_list.iter() {
+            let type_id = if let Some(t_id) = self.module.types.find(args, result) {
                 t_id
             } else {
-                self.module.types.add(&params, &results)
+                self.module.types.add(args, result)
             };
-            let (id, _import_id) = self.module.add_import_func("env", func_name, type_id); //?
-            self.module.funcs.get_mut(id).name = Some(func_name.to_string());
-            self.function_ids
-                .insert(func_name.to_string(), (id, func_param.clone()));
+            let (func_id, import_id) = self.module.add_import_func("env", name, type_id);
+            self.module
+                .globals
+                .add_import(walrus::ValType::Funcref, false, import_id);
+
+            symbol_table.insert(
+                name.clone(),
+                Attribute::Func(func_id, args.to_vec(), result.to_vec()),
+            );
         }
     }
 
@@ -64,41 +50,29 @@ impl Compiler {
         &mut self,
         builder: &mut InstrSeqBuilder,
         image_names: &Vec<String>,
-        item_tracker: &mut ItemTracker,
+        symbol_table: &mut SymbolTable,
     ) {
-        for i in 0..image_names.len() {
-            let image_name = image_names[i].clone().trim().to_string();
-            builder.i32_const(i as i32);
-            let new_id = self.module.locals.add(walrus::ValType::I32);
-            builder.local_set(new_id);
-            self.local_ids
-                .insert(image_name.clone(), ("Image".to_string(), new_id));
-            item_tracker.add_image("import", Some(image_name.clone()), None, false);
+        for i in 0..image_names.len() as i32 {
+            let image_name = image_names[i as usize].clone().trim().to_string();
+            builder.i32_const(i);
+            let image_id = self.module.locals.add(walrus::ValType::I32);
+            builder.local_set(image_id);
+            let image = Image::new(i);
+            symbol_table.insert(image_name.clone(), Attribute::Image(image_id, Some(image)));
         }
     }
 
     fn compile(&mut self, src: String, image_names: Vec<String>) -> Vec<u8> {
+        let mut symbol_table: SymbolTable = SymbolTable::new();
+        self.import_lib(&mut symbol_table);
+
         self.src = "func main(){".to_string() + &src + &"}".to_string();
         let functions = ProgramParser::new().parse(&self.src).unwrap();
-        // log(&format!(
-        //     "larlpop parse result: {:?}",
-        //     coocoo::ProgramParser::new().parse(&self.src)
-        // ));
         let function = &functions[0];
         let mut function_builder = FunctionBuilder::new(&mut self.module.types, &vec![], &[]);
         let mut builder: InstrSeqBuilder = function_builder.func_body();
-        let mut item_tracker: ItemTracker = ItemTracker::new();
-        self.import_images(&mut builder, &image_names, &mut item_tracker);
-        let mut variable_dependency: HashMap<String, Vec<String>> = HashMap::new();
-
-        function.compile(
-            &mut self.module,
-            &mut builder,
-            &mut self.local_ids,
-            &self.function_ids,
-            &mut variable_dependency,
-            &mut item_tracker,
-        );
+        self.import_images(&mut builder, &image_names, &mut symbol_table);
+        function.compile(&mut self.module, &mut builder, &mut symbol_table);
 
         let function_id = function_builder.finish(vec![], &mut self.module.funcs);
 
@@ -106,17 +80,16 @@ impl Compiler {
             .exports
             .add(&function.prototype.identifier, function_id);
 
-        IMAGE_LIBRARY
-            .lock()
-            .unwrap()
-            .add_export_names(item_tracker.get_image_names());
+        // IMAGE_LIBRARY
+        //     .lock()
+        //     .unwrap()
+        //     .add_export_names(item_tracker.get_image_names());
 
         // log(&format!("program: {:?}", function));
         self.module.emit_wasm()
     }
 
     pub fn run(&mut self, src: String, image_names: Vec<String>) -> Vec<u8> {
-        self.import_lib();
         self.compile(src, image_names)
     }
 }
@@ -132,6 +105,25 @@ fn parse_image_names(image_file_names: &JsValue) -> Vec<String> {
             vec![]
         }
     }
+}
+
+fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus::ValType>)> {
+    let mut lib_func_list: HashMap<String, (Vec<walrus::ValType>, Vec<walrus::ValType>)> =
+        HashMap::new();
+    lib_func_list.insert("logger".to_string(), (vec![ValType::I32], vec![]));
+    lib_func_list.insert(
+        "darken".to_string(),
+        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "blank_image".to_string(),
+        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "grayscale".to_string(),
+        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+    );
+    return lib_func_list;
 }
 
 #[wasm_bindgen]

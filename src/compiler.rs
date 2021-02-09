@@ -11,6 +11,35 @@ use wasm_bindgen::JsValue;
 
 log_rule!();
 
+pub struct Memory {
+    id: walrus::MemoryId,
+    current_offset: u32,
+}
+
+impl Memory {
+    pub fn new(module: &mut walrus::Module) -> Self {
+        return Memory {
+            id: module.memories.add_local(true, 10, Some(100)),
+            current_offset: 0,
+        };
+    }
+
+    pub fn store(&mut self, builder: &mut InstrSeqBuilder, align: u32, offset: Option<u32>) {
+        let offset = if offset.is_some() {
+            offset.unwrap()
+        } else {
+            self.current_offset.clone()
+        };
+        builder.store(
+            self.id,
+            walrus::ir::StoreKind::I32 { atomic: true },
+            walrus::ir::MemArg { align, offset },
+        );
+
+        self.current_offset += align;
+    }
+}
+
 pub struct Compiler {
     module: walrus::Module,
     src: String,
@@ -72,21 +101,26 @@ impl Compiler {
         let mut function_builder = FunctionBuilder::new(&mut self.module.types, &vec![], &[]);
         let mut builder: InstrSeqBuilder = function_builder.func_body();
         self.import_images(&mut builder, &image_names, &mut symbol_table);
-        function.compile(&mut self.module, &mut builder, &mut symbol_table);
 
-        let function_id = function_builder.finish(vec![], &mut self.module.funcs);
+        let mut memory = Memory::new(&mut self.module);
 
-        self.module
-            .exports
-            .add(&function.prototype.identifier, function_id);
+        let function_compile_result = function.compile(
+            &mut self.module,
+            &mut builder,
+            &mut symbol_table,
+            &mut vec![memory],
+        );
+        if function_compile_result.is_ok() {
+            let function_id = function_builder.finish(vec![], &mut self.module.funcs);
 
-        // IMAGE_LIBRARY
-        //     .lock()
-        //     .unwrap()
-        //     .add_export_names(item_tracker.get_image_names());
+            self.module
+                .exports
+                .add(&function.prototype.identifier, function_id);
 
-        // log(&format!("program: {:?}", function));
-        self.module.emit_wasm()
+            self.module.emit_wasm()
+        } else {
+            vec![]
+        }
     }
 
     pub fn run(&mut self, src: String, image_names: Vec<String>) -> Vec<u8> {
@@ -141,7 +175,7 @@ mod tests {
     use wasmer::*;
     use wasmer_compiler_cranelift::Cranelift;
     use wasmer_engine_jit::JIT;
-    use wasmer_runtime::*;
+    // use wasmer_runtime::*;
 
     #[test]
     fn rust_test0() {

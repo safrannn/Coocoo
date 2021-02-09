@@ -42,7 +42,7 @@ impl SymbolTable {
 pub enum Attribute {
     Number(Id<walrus::Local>),
     Image(Id<walrus::Local>, Option<Image>), // local_id, image info
-    Material(Id<walrus::Local>, Material),   // local_id, material info
+    Material(walrus::MemoryId, u32, Material), // local_id, material info
     Func(
         id_arena::Id<walrus::Function>,
         Vec<walrus::ValType>,
@@ -116,5 +116,5 @@ type PBRMetalness = [Image; 11]; // diffuse, metalness, specular, normal, transp
 
 #[derive(Clone, Copy)]
 pub enum Material {
-    PBRMetalMaterial(PBRMetalness),
+    PBRMetalMaterial(i32, i32, PBRMetalness),
 }

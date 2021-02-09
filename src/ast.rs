@@ -1,3 +1,4 @@
+use super::compiler::Memory;
 use super::log_rule;
 use super::symbol::*;
 use std::fmt::{Debug, Error, Formatter};
@@ -13,6 +14,7 @@ pub trait Compile {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
+        memories: &mut Vec<Memory>,
     ) -> Result<(), &'static str>;
 }
 
@@ -42,6 +44,7 @@ impl Compile for Opcode {
         _module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         _symbol_table: &mut SymbolTable,
+        _memories: &mut Vec<Memory>,
     ) -> Result<(), &'static str> {
         use self::Opcode::*;
         match *self {
@@ -96,6 +99,7 @@ impl Compile for Expr {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
+        memories: &mut Vec<Memory>,
     ) -> Result<(), &'static str> {
         use self::Expr::*;
         match *self {
@@ -104,15 +108,15 @@ impl Compile for Expr {
                 return Ok(());
             }
             Op(ref l, op, ref r) => {
-                let l_compile_result = l.compile(module, builder, symbol_table);
+                let l_compile_result = l.compile(module, builder, symbol_table, memories);
                 if !l_compile_result.is_ok() {
                     return l_compile_result;
                 }
-                let r_compile_result = r.compile(module, builder, symbol_table);
+                let r_compile_result = r.compile(module, builder, symbol_table, memories);
                 if !r_compile_result.is_ok() {
                     return r_compile_result;
                 }
-                let op_compile_result = op.compile(module, builder, symbol_table);
+                let op_compile_result = op.compile(module, builder, symbol_table, memories);
                 if !op_compile_result.is_ok() {
                     return op_compile_result;
                 }
@@ -121,10 +125,11 @@ impl Compile for Expr {
             Variable(ref identifier) => {
                 if let Some(attr) = symbol_table.lookup(identifier) {
                     match attr {
-                        Attribute::Image(local_id, _) | Attribute::Material(local_id, _) => {
+                        Attribute::Image(local_id, _) => {
                             builder.local_get(*local_id);
                             return Ok(());
                         }
+                        Attribute::Material(_, _, _) => {}
                         _ => {
                             log(&format!(
                                 "Error: variable {:?} is neither an image nor a number.",
@@ -163,7 +168,7 @@ impl Compile for Expr {
                             match expr {
                                 Number(_) | Call(_, _) | Op(_, _, _) => {
                                     let expr_compile_result =
-                                        expr.compile(module, builder, symbol_table);
+                                        expr.compile(module, builder, symbol_table, memories);
                                     if !expr_compile_result.is_ok() {
                                         return expr_compile_result;
                                     }
@@ -173,8 +178,12 @@ impl Compile for Expr {
                                         if argument_tp == walrus::ValType::I32 {
                                             match attr {
                                                 Attribute::Image(_, _) | Attribute::Number(_) => {
-                                                    let expr_compile_result =
-                                                        expr.compile(module, builder, symbol_table);
+                                                    let expr_compile_result = expr.compile(
+                                                        module,
+                                                        builder,
+                                                        symbol_table,
+                                                        memories,
+                                                    );
                                                     if !expr_compile_result.is_ok() {
                                                         return expr_compile_result;
                                                     }
@@ -241,6 +250,7 @@ impl Compile for Statement {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
+        memories: &mut Vec<Memory>,
     ) -> Result<(), &'static str> {
         use self::Statement::*;
         match &*self {
@@ -254,7 +264,8 @@ impl Compile for Statement {
                 let expr = &**expr;
                 match expr {
                     Expr::Number(_) | Expr::Op(_, _, _) => {
-                        let expr_compile_result = expr.compile(module, builder, symbol_table);
+                        let expr_compile_result =
+                            expr.compile(module, builder, symbol_table, memories);
                         if expr_compile_result.is_ok() {
                             let local_id = module.locals.add(ValType::I32);
                             builder.local_set(local_id);
@@ -284,7 +295,7 @@ impl Compile for Statement {
                             );
                             return Ok(());
                         }
-                        Some(Attribute::Material(_, _)) => {
+                        Some(Attribute::Material(_, _, _)) => {
                             return Ok(());
                         }
                         _ => {
@@ -296,7 +307,8 @@ impl Compile for Statement {
                         }
                     },
                     Expr::Call(func_ident, _exprs) => {
-                        let call_compile_result = expr.compile(module, builder, symbol_table);
+                        let call_compile_result =
+                            expr.compile(module, builder, symbol_table, memories);
                         if call_compile_result.is_ok() {
                             match symbol_table.lookup(func_ident).unwrap() {
                                 Attribute::Func(_, _, returns) => {
@@ -331,19 +343,17 @@ impl Compile for Statement {
                 }
             }
             Block(statements) => {
-                for statement in statements {
-                    let statement_compile_result = statement.compile(module, builder, symbol_table);
-                    if statement_compile_result.is_ok() {
-                        // let mut new_function_builder =
-                        //     FunctionBuilder::new(&mut module.types, &vec![], &[]);
-                        // let mut new_builder = RefCell::new(new_function_builder.func_body());
-                        builder.block(InstrSeqType::Simple(Option::None), |builder| {
-                            statement.compile(module, builder, symbol_table);
-                        });
-                    } else {
-                        return statement_compile_result;
-                    }
-                }
+                // builder.block(InstrSeqType::Simple(Option::None), |builder| {
+                //     for statement in statements {
+
+                //         let statement_compile_result =
+                //             statement.compile(module, builder, symbol_table);
+                //         if !statement_compile_result.is_ok() {
+                //             return statement_compile_result;
+                //         }
+                //     }
+                // });
+
                 return Ok(());
             }
         }
@@ -368,6 +378,7 @@ impl Compile for Prototype {
         _module: &mut walrus::Module,
         _builder: &mut InstrSeqBuilder,
         _symbol_table: &mut SymbolTable,
+        _memories: &mut Vec<Memory>,
     ) -> Result<(), &'static str> {
         return Ok(());
     }
@@ -376,12 +387,15 @@ impl Compile for Prototype {
 #[derive(Debug)]
 pub struct Function {
     pub prototype: Prototype,
-    pub block: Statement,
+    pub statements: Vec<Statement>,
 }
 
 impl Function {
-    pub fn new(prototype: Prototype, block: Statement) -> Self {
-        Function { prototype, block }
+    pub fn new(prototype: Prototype, statements: Vec<Statement>) -> Self {
+        Function {
+            prototype,
+            statements,
+        }
     }
 }
 
@@ -391,11 +405,19 @@ impl Compile for Function {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
+        memories: &mut Vec<Memory>,
     ) -> Result<(), &'static str> {
-        let _prototype_compile_result = self.prototype.compile(module, builder, symbol_table);
+        let _prototype_compile_result =
+            self.prototype
+                .compile(module, builder, symbol_table, memories);
 
-        let block_compile_result = self.block.compile(module, builder, symbol_table);
-
-        return block_compile_result;
+        for statement in &self.statements {
+            let statement_compile_result =
+                statement.compile(module, builder, symbol_table, memories);
+            if !statement_compile_result.is_ok() {
+                return statement_compile_result;
+            }
+        }
+        return Ok(());
     }
 }

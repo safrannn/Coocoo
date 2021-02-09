@@ -57,7 +57,7 @@ Prototype: Prototype = {
 };
         
 Function: Function = {
-    <prototype:Prototype> <block:Statement> => Function::new(prototype, block)
+    <prototype:Prototype> "{" <statements:Semicolon<Statement>> "}" => Function::new(prototype, statements)
 };
 
 pub Program: Vec<Function> = <functions:Function*> => functions.into_iter().collect();

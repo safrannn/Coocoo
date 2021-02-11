@@ -45,11 +45,15 @@ Term: Box<Expr> = {
     Identifier => Box::new(Expr::Variable(<>)), 
     <identifier:Identifier> "(" <exprs:Comma<Expr>> ")" => Box::new(Expr::Call(identifier, exprs)),
     "(" <Expr> ")",
+    // <expr_left:Expr> "==" <expr_right:Expr>  => Expr::Equal(expr_left, expr_right),
 };
 
 Statement: Statement = {
-    <identifier:Identifier> "=" <expr:Expr>  => Statement::VarDef(identifier, expr),
+    "var" <identifier:Identifier> ":" <type_identifier:Identifier> => Statement::Define(identifier, var_type, None),
+    "var" <identifier:Identifier> ":" <type_identifier:Identifier> ":" <expr:Expr>=> Statement::Define(identifier, var_type, expr),
+    <identifier:Identifier> "=" <expr:Expr>  => Statement::Assignment(identifier, expr),
     "{" <statements:Semicolon<Statement>> "}" => Statement::Block(statements),
+    
 }
 
 Prototype: Prototype = {

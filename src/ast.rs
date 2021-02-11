@@ -14,7 +14,7 @@ pub trait Compile {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<Memory>,
+        memories: &mut Vec<&Memory>,
     ) -> Result<(), &'static str>;
 }
 
@@ -44,7 +44,7 @@ impl Compile for Opcode {
         _module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         _symbol_table: &mut SymbolTable,
-        _memories: &mut Vec<Memory>,
+        _memories: &mut Vec<&Memory>,
     ) -> Result<(), &'static str> {
         use self::Opcode::*;
         match *self {
@@ -99,7 +99,7 @@ impl Compile for Expr {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<Memory>,
+        memories: &mut Vec<&Memory>,
     ) -> Result<(), &'static str> {
         use self::Expr::*;
         match *self {
@@ -227,14 +227,22 @@ impl Compile for Expr {
 // #[derive(Debug)]
 #[derive(Clone)]
 pub enum Statement {
-    VarDef(String, Box<Expr>),
+    Declare(String, String, Option<Expr>),
+    Assignment(String, Box<Expr>),
     Block(Vec<Statement>),
 }
 
 impl Debug for Statement {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match &*self {
-            Self::VarDef(ref identifier, ref expr) => {
+            Self::Declare(ref identifier, ref var_type, ref expr) => {
+                write!(
+                    fmt,
+                    "identifier: {:?}, type: {:?}, expression: {:?}",
+                    identifier, var_type, expr
+                )
+            }
+            Self::Assignment(ref identifier, ref expr) => {
                 write!(fmt, "identifier: {:?}, expression: {:?}", identifier, expr)
             }
             Self::Block(ref statements) => {
@@ -250,32 +258,199 @@ impl Compile for Statement {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<Memory>,
+        memories: &mut Vec<&Memory>,
     ) -> Result<(), &'static str> {
         use self::Statement::*;
         match &*self {
-            VarDef(ref identifier, ref expr) => {
+            Declare(ref identifier, ref var_type, ref expr) => {
                 if identifier.parse::<i32>().is_ok() {
                     log(&format!(
                         "Error: please use a non-numeric name for a variable."
                     ));
                     return Err("Error");
                 }
-                let expr = &**expr;
-                match expr {
-                    Expr::Number(_) | Expr::Op(_, _, _) => {
-                        let expr_compile_result =
-                            expr.compile(module, builder, symbol_table, memories);
-                        if expr_compile_result.is_ok() {
-                            let local_id = module.locals.add(ValType::I32);
-                            builder.local_set(local_id);
-                            symbol_table
-                                .insert(identifier.to_string(), Attribute::Number(local_id));
-                            return Ok(());
-                        } else {
-                            return expr_compile_result;
-                        };
+
+                match var_type.as_str() {
+                    "N" | "Number" | "number" => {
+                        let local_id = module.locals.add(ValType::I32);
+                        if expr.is_some() {
+                            let expr = expr.unwrap();
+                            match expr {
+                                Expr::Variable(var_right_ident) => {
+                                    if let Some(var_right) = symbol_table.lookup(&var_right_ident) {
+                                        match var_right {
+                                            Attribute::Number(var_right_local_id) => {
+                                                builder.local_get(*var_right_local_id);
+                                                builder.local_set(local_id);
+                                            }
+                                            _ => {
+                                                log(&format!(
+                                                    "Error: {:?} is not a number.",
+                                                    var_right_ident
+                                                ));
+                                                symbol_table.remove(identifier);
+                                                return Err("Error");
+                                            }
+                                        }
+                                    } else {
+                                        log(&format!(
+                                            "Error: {:?} does not exist.",
+                                            var_right_ident
+                                        ));
+                                        symbol_table.remove(identifier);
+                                        return Err("Error");
+                                    }
+                                    symbol_table.insert(
+                                        identifier.to_string(),
+                                        Attribute::Number(local_id),
+                                    );
+                                }
+                                Expr::Number(_) | Expr::Op(_, _, _) => {
+                                    let expr_compile_result =
+                                        expr.compile(module, builder, symbol_table, memories);
+                                    if !expr_compile_result.is_ok() {
+                                        symbol_table.remove(identifier);
+                                        return expr_compile_result;
+                                    } else {
+                                        builder.local_set(local_id);
+                                    }
+                                    symbol_table.insert(
+                                        identifier.to_string(),
+                                        Attribute::Number(local_id),
+                                    );
+                                }
+                                _ => {
+                                    log(&format!(
+                                        "Error: {:?} and {:?} has different type.",
+                                        identifier, expr
+                                    ));
+                                    symbol_table.remove(identifier);
+                                    return Err("Error");
+                                }
+                            }
+                        }
+                        return Ok(());
                     }
+                    "I" | "Image" | "image" => {
+                        let local_id = module.locals.add(ValType::I32);
+
+                        if expr.is_some() {
+                            let expr = expr.unwrap();
+                            match expr {
+                                Expr::Variable(right_ident) => {
+                                    if let Some(right) = symbol_table.lookup(&right_ident) {
+                                        match right {
+                                            Attribute::Image(right_local_id, _) => {
+                                                builder.local_get(*right_local_id);
+                                                builder.local_set(local_id);
+                                            }
+                                            _ => {
+                                                log(&format!(
+                                                    "Error: {:?} is not an image.",
+                                                    right_ident
+                                                ));
+                                                symbol_table.remove(identifier);
+                                                return Err("Error");
+                                            }
+                                        }
+                                    } else {
+                                        log(&format!("Error: {:?} does not exist.", right_ident));
+                                        symbol_table.remove(identifier);
+                                        return Err("Error");
+                                    }
+                                    symbol_table.insert(
+                                        identifier.to_string(),
+                                        Attribute::Number(local_id),
+                                    );
+                                }
+                                Expr::Call(right_ident, _) => {
+                                    if let Some(right) = symbol_table.lookup(&right_ident) {
+                                        match right {
+                                            Attribute::Func(right_func_id, _, _) => {
+                                                let right_compile_result = expr.compile(
+                                                    module,
+                                                    builder,
+                                                    symbol_table,
+                                                    memories,
+                                                );
+                                                if !right_compile_result.is_ok() {
+                                                    symbol_table.remove(identifier);
+                                                    return right_compile_result;
+                                                }
+                                            }
+                                            _ => {
+                                                log(&format!(
+                                                    "Error: {:?} is not an image.",
+                                                    right_ident
+                                                ));
+                                                symbol_table.remove(identifier);
+                                                return Err("Error");
+                                            }
+                                        }
+                                    } else {
+                                        log(&format!("Error: {:?} does not exist.", right_ident));
+                                        symbol_table.remove(identifier);
+                                        return Err("Error");
+                                    }
+                                }
+                                _ => {
+                                    log(&format!(
+                                        "Error: {:?} and {:?} has different type.",
+                                        identifier, expr
+                                    ));
+                                    symbol_table.remove(identifier);
+                                    return Err("Error");
+                                }
+                            }
+                        }
+
+                        symbol_table
+                            .insert(identifier.to_string(), Attribute::Image(local_id, None));
+                        return Ok(());
+                    }
+                    "M" | "Material" | "material" => {
+                        return Ok(());
+                    }
+                    _ => {
+                        log(&format!(
+                            "Error: type {:?} not supported.",
+                            var_type.as_str()
+                        ));
+                        return Err("Error");
+                    }
+                }
+            }
+            Assignment(ref identifier, ref expr) => {
+                let expr = &**expr;
+                if symbol_table.lookup(identifier).is_none() {
+                    log(&format!(
+                        "Error: {:?} doesn't exist. Please decalre or define it. Example: var image0:Image; or var image1:Image = file_001;",
+                        identifier
+                    ));
+                    return Err("Error");
+                }
+                let variable = symbol_table.lookup(identifier).unwrap();
+
+                match expr {
+                    Expr::Number(_) => match variable {
+                        Attribute::Number(number_id) => {
+                            let expr_compile_result =
+                                expr.compile(module, builder, symbol_table, memories);
+                            if expr_compile_result.is_ok() {
+                                builder.local_set(*number_id);
+                                return Ok(());
+                            } else {
+                                return expr_compile_result;
+                            };
+                        }
+                        _ => {
+                            log(&format!(
+                                "Error: {:?} has not been decalred as a number",
+                                identifier,
+                            ));
+                            return Err("Error");
+                        }
+                    },
                     Expr::Variable(var_right) => match symbol_table.lookup(&var_right) {
                         Some(Attribute::Number(var_right_local_id)) => {
                             builder.local_get(*var_right_local_id);
@@ -300,7 +475,7 @@ impl Compile for Statement {
                         }
                         _ => {
                             log(&format!(
-                                        "Error:  variable {:?} doesn't exist, please define {:?} with something else.",
+                                        "Error: variable {:?} doesn't exist, please define {:?} with something else.",
                                         var_right, identifier
                                     ));
                             return Err("Error");
@@ -333,13 +508,6 @@ impl Compile for Statement {
                             return call_compile_result;
                         }
                     }
-                    _ => {
-                        log(&format!(
-                            "Error: please define {:?} with a number, image or call to a function.",
-                            identifier
-                        ));
-                        return Err("Error");
-                    }
                 }
             }
             Block(statements) => {
@@ -363,12 +531,15 @@ impl Compile for Statement {
 #[derive(Debug)]
 pub struct Prototype {
     pub identifier: String,
-    pub params: Vec<String>,
+    pub arguments: Vec<String>,
 }
 
 impl Prototype {
-    pub fn new(identifier: String, params: Vec<String>) -> Self {
-        Prototype { identifier, params }
+    pub fn new(identifier: String, arguments: Vec<String>) -> Self {
+        Prototype {
+            identifier,
+            arguments,
+        }
     }
 }
 
@@ -378,7 +549,7 @@ impl Compile for Prototype {
         _module: &mut walrus::Module,
         _builder: &mut InstrSeqBuilder,
         _symbol_table: &mut SymbolTable,
-        _memories: &mut Vec<Memory>,
+        _memories: &mut Vec<&Memory>,
     ) -> Result<(), &'static str> {
         return Ok(());
     }
@@ -405,7 +576,7 @@ impl Compile for Function {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<Memory>,
+        memories: &mut Vec<&Memory>,
     ) -> Result<(), &'static str> {
         let _prototype_compile_result =
             self.prototype

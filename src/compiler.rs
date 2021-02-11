@@ -108,7 +108,7 @@ impl Compiler {
             &mut self.module,
             &mut builder,
             &mut symbol_table,
-            &mut vec![memory],
+            &mut vec![&memory],
         );
         if function_compile_result.is_ok() {
             let function_id = function_builder.finish(vec![], &mut self.module.funcs);

@@ -33,6 +33,9 @@ impl SymbolTable {
         self.table.get(ident)
     }
 
+    pub fn remove(&mut self, ident: &String) {
+        self.table.remove(ident);
+    }
     pub fn free(&mut self) {
         self.table.clear();
     }
@@ -42,7 +45,7 @@ impl SymbolTable {
 pub enum Attribute {
     Number(Id<walrus::Local>),
     Image(Id<walrus::Local>, Option<Image>), // local_id, image info
-    Material(walrus::MemoryId, u32, Material), // local_id, material info
+    Material(walrus::MemoryId, u32, String), // memoryid, offset, material type
     Func(
         id_arena::Id<walrus::Function>,
         Vec<walrus::ValType>,
@@ -112,9 +115,41 @@ impl LibraryTracker {
     }
 }
 
-type PBRMetalness = [Image; 11]; // diffuse, metalness, specular, normal, transparency, roughness, ambient_occlusion, displacement, emission, cavity, subsurfance_scattering
+#[derive(Clone)]
+pub struct Material {
+    channel_info: HashMap<String, Vec<&'static str>>,
+}
 
-#[derive(Clone, Copy)]
-pub enum Material {
-    PBRMetalMaterial(i32, i32, PBRMetalness),
+impl Material {
+    fn new() -> Self {
+        let channel_info: HashMap<String, Vec<&'static str>> = HashMap::new();
+        channel_info.insert(
+            "PBRMetalness".to_string(),
+            vec![
+                "diffuse",
+                "metalness",
+                "specular",
+                "normal",
+                "transparency",
+                "roughness",
+                "ambient_occlusion",
+                "displacement",
+                "emission",
+                "cavity",
+                "subsurfance_scattering",
+            ],
+        );
+        return Material { channel_info };
+    }
+
+    pub fn find_channel_index(&self, type_name: &String, channel: &String) -> Result<u32, ()> {
+        if let Some(channels) = self.channel_info.get(type_name) {
+            for (i, &v) in channels.iter().enumerate() {
+                if v == channel {
+                    return Ok(i as u32);
+                }
+            }
+        }
+        return Err(());
+    }
 }

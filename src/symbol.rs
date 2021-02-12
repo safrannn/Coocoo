@@ -33,15 +33,35 @@ impl SymbolTable {
         self.table.get(ident)
     }
 
+    pub fn update(&mut self, ident: &String, new_attr: Attribute) -> Result<(), ()> {
+        if self.lookup(ident).is_none() {
+            return Err(());
+        }
+
+        match new_attr {
+            Attribute::Image(_, image) => {
+                self.library_tracker
+                    .add_image(Some(ident.clone()), image.clone());
+            }
+            _ => {}
+        }
+        *self
+            .table
+            .entry(ident.to_string())
+            .or_insert(Attribute::Empty()) = new_attr;
+        return Ok(());
+    }
+
     pub fn remove(&mut self, ident: &String) {
         self.table.remove(ident);
     }
+
     pub fn free(&mut self) {
         self.table.clear();
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Attribute {
     Number(Id<walrus::Local>),
     Image(Id<walrus::Local>, Option<Image>), // local_id, image info
@@ -56,7 +76,7 @@ pub enum Attribute {
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Image {
     pub id: i32,
 }
@@ -122,7 +142,7 @@ pub struct Material {
 
 impl Material {
     fn new() -> Self {
-        let channel_info: HashMap<String, Vec<&'static str>> = HashMap::new();
+        let mut channel_info: HashMap<String, Vec<&'static str>> = HashMap::new();
         channel_info.insert(
             "PBRMetalness".to_string(),
             vec![

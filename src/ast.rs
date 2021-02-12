@@ -227,7 +227,7 @@ impl Compile for Expr {
 // #[derive(Debug)]
 #[derive(Clone)]
 pub enum Statement {
-    Declare(String, String, Option<Expr>),
+    Declare(String, String, Option<Box<Expr>>),
     Assignment(String, Box<Expr>),
     Block(Vec<Statement>),
 }
@@ -274,7 +274,7 @@ impl Compile for Statement {
                     "N" | "Number" | "number" => {
                         let local_id = module.locals.add(ValType::I32);
                         if expr.is_some() {
-                            let expr = expr.unwrap();
+                            let expr = &**(expr.as_ref().unwrap());
                             match expr {
                                 Expr::Variable(var_right_ident) => {
                                     if let Some(var_right) = symbol_table.lookup(&var_right_ident) {
@@ -335,7 +335,7 @@ impl Compile for Statement {
                         let local_id = module.locals.add(ValType::I32);
 
                         if expr.is_some() {
-                            let expr = expr.unwrap();
+                            let expr = &**(expr.as_ref().unwrap());
                             match expr {
                                 Expr::Variable(right_ident) => {
                                     if let Some(right) = symbol_table.lookup(&right_ident) {
@@ -429,88 +429,119 @@ impl Compile for Statement {
                     ));
                     return Err("Error");
                 }
-                let variable = symbol_table.lookup(identifier).unwrap();
 
-                match expr {
-                    Expr::Number(_) => match variable {
-                        Attribute::Number(number_id) => {
+                match symbol_table.lookup(identifier).unwrap().clone() {
+                    Attribute::Number(left_local_id) => match expr {
+                        Expr::Variable(right_ident) => {
+                            if symbol_table.lookup(&right_ident).is_none() {
+                                log(&format!("Error: {:?} does not exist.", right_ident));
+                                return Err("Error");
+                            }
+                            match symbol_table.lookup(&right_ident) {
+                                Some(Attribute::Number(right_local_id)) => {
+                                    builder.local_get(*right_local_id);
+                                    builder.local_set(left_local_id);
+                                }
+                                _ => {
+                                    log(&format!("Error: {:?} is not a number.", expr));
+                                    return Err("Error");
+                                }
+                            }
+                        }
+                        Expr::Number(_) | Expr::Op(_, _, _) => {
                             let expr_compile_result =
                                 expr.compile(module, builder, symbol_table, memories);
                             if expr_compile_result.is_ok() {
-                                builder.local_set(*number_id);
-                                return Ok(());
+                                builder.local_set(left_local_id);
                             } else {
                                 return expr_compile_result;
                             };
                         }
                         _ => {
                             log(&format!(
-                                "Error: {:?} has not been decalred as a number",
+                                "Error: value of {:?} should be as a number",
                                 identifier,
                             ));
                             return Err("Error");
                         }
                     },
-                    Expr::Variable(var_right) => match symbol_table.lookup(&var_right) {
-                        Some(Attribute::Number(var_right_local_id)) => {
-                            builder.local_get(*var_right_local_id);
-                            let local_id = module.locals.add(ValType::I32);
-                            builder.local_set(local_id);
-                            symbol_table
-                                .insert(identifier.clone(), Attribute::Number(*var_right_local_id));
-                            return Ok(());
-                        }
-                        Some(Attribute::Image(var_right_local_id, _)) => {
-                            builder.local_get(*var_right_local_id);
-                            let local_id = module.locals.add(ValType::I32);
-                            builder.local_set(local_id);
-                            symbol_table.insert(
-                                identifier.clone(),
-                                Attribute::Image(*var_right_local_id, None),
-                            );
-                            return Ok(());
-                        }
-                        Some(Attribute::Material(_, _, _)) => {
-                            return Ok(());
-                        }
-                        _ => {
-                            log(&format!(
-                                        "Error: variable {:?} doesn't exist, please define {:?} with something else.",
-                                        var_right, identifier
-                                    ));
-                            return Err("Error");
-                        }
-                    },
-                    Expr::Call(func_ident, _exprs) => {
-                        let call_compile_result =
-                            expr.compile(module, builder, symbol_table, memories);
-                        if call_compile_result.is_ok() {
-                            match symbol_table.lookup(func_ident).unwrap() {
-                                Attribute::Func(_, _, returns) => {
-                                    if returns == &vec![ValType::I32] {
-                                        let local_id = module.locals.add(ValType::I32);
-                                        builder.local_set(local_id);
-                                        symbol_table.insert(
-                                            identifier.clone(),
-                                            Attribute::Image(local_id, None),
+                    Attribute::Image(left_local_id, _) => {
+                        log(&format!(""));
+                        match expr {
+                            Expr::Variable(right_ident) => {
+                                if symbol_table.lookup(&right_ident).is_none() {
+                                    log(&format!("Error: {:?} does not exist.", right_ident));
+                                    return Err("Error");
+                                }
+                                match symbol_table.lookup(&right_ident).unwrap().clone() {
+                                    Attribute::Image(right_local_id, right_image_info) => {
+                                        let update_result = symbol_table.update(
+                                            identifier,
+                                            Attribute::Image(
+                                                right_local_id.clone(),
+                                                right_image_info.clone(),
+                                            ),
                                         );
-                                        symbol_table
-                                            .library_tracker
-                                            .add_image(Some(identifier.clone()), None);
-                                        return Ok(());
-                                    } else {
-                                        return call_compile_result;
+                                        if update_result.is_ok() {
+                                            builder.local_get(right_local_id);
+                                            builder.local_set(left_local_id);
+                                        } else {
+                                            return Err("Error");
+                                        }
+                                    }
+                                    _ => {
+                                        log(&format!("Error: {:?} is not an image.", right_ident));
+                                        return Err("Error");
                                     }
                                 }
-                                _ => Err("Error"),
                             }
-                        } else {
-                            return call_compile_result;
+                            Expr::Call(func_ident, _) => {
+                                let call_compile_result =
+                                    expr.compile(module, builder, symbol_table, memories);
+
+                                if call_compile_result.is_ok() {
+                                    match symbol_table.lookup(func_ident).unwrap().clone() {
+                                        Attribute::Func(_, _, returns) => {
+                                            if returns == vec![walrus::ValType::I32] {
+                                                let update_result = symbol_table.update(
+                                                    identifier,
+                                                    Attribute::Image(left_local_id, None),
+                                                );
+                                                if update_result.is_ok() {
+                                                    builder.local_set(left_local_id);
+                                                } else {
+                                                    return Err("Error");
+                                                }
+                                            } else {
+                                                return call_compile_result;
+                                            }
+                                        }
+                                        _ => {
+                                            log(&format!(
+                                            "Error: {:?} doesn't exist. Please use another function",
+                                            func_ident
+                                        ));
+                                            return Err("Error");
+                                        }
+                                    }
+                                } else {
+                                    return call_compile_result;
+                                }
+                            }
+                            _ => {
+                                log(&format!(
+                                    "Error: value of {:?} should be as an image",
+                                    identifier,
+                                ));
+                                return Err("Error");
+                            }
                         }
                     }
+                    Attribute::Material(_, _, _) => {}
+                    _ => {}
                 }
             }
-            Block(statements) => {
+            Block(_) => {
                 // builder.block(InstrSeqType::Simple(Option::None), |builder| {
                 //     for statement in statements {
 
@@ -525,6 +556,7 @@ impl Compile for Statement {
                 return Ok(());
             }
         }
+        return Ok(());
     }
 }
 

@@ -714,7 +714,10 @@ async function main() {
 
         let image_names = processImageInput();
         let output_wasm_buffer = compiler.code_to_wasm(observableStateStore.code, image_names);
-        observableStateStore.addConsoleMessage("✔ Compile finished.");
+        var has_error = observableStateStore.consoleMessage.length == 0 ? false : true
+        if (!has_error) {
+            observableStateStore.addConsoleMessage("\n✔ Compile finished.");
+        }
         print_wat(output_wasm_buffer);
 
         let importObject = {
@@ -735,7 +738,9 @@ async function main() {
         };
         let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);
         instance.exports.main();
-        observableStateStore.addConsoleMessage("✔ Execution finished.");
+        if (!has_error) {
+            observableStateStore.addConsoleMessage("✔ Execution finished.");
+        }
 
         async function print_wat(buffer) {
             let w = await wabt()
@@ -750,7 +755,9 @@ async function main() {
         }
 
         // export_images(compiler.library_export());
-        observableStateStore.addConsoleMessage("✔ Export finished.");
+        if (!has_error) {
+            observableStateStore.addConsoleMessage("✔ Export finished.");
+        }
     }
 
     function export_images(result_images) {

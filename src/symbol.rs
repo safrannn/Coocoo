@@ -97,7 +97,7 @@ impl Image {
 pub struct LibraryTracker {
     images: HashMap<String, Image>,
     pub next_image_id: i32,
-    material: HashMap<String, Material>,
+    // material: HashMap<String, Material>,
 }
 
 impl LibraryTracker {
@@ -105,7 +105,7 @@ impl LibraryTracker {
         LibraryTracker {
             images: HashMap::new(),
             next_image_id: 0,
-            material: HashMap::new(),
+            // material: HashMap::new(),
         }
     }
 
@@ -136,11 +136,11 @@ impl LibraryTracker {
 }
 
 #[derive(Clone)]
-pub struct Material {
+pub struct MaterialInfo {
     channel_info: HashMap<String, Vec<&'static str>>,
 }
 
-impl Material {
+impl MaterialInfo {
     fn new() -> Self {
         let mut channel_info: HashMap<String, Vec<&'static str>> = HashMap::new();
         channel_info.insert(
@@ -159,7 +159,7 @@ impl Material {
                 "subsurfance_scattering",
             ],
         );
-        return Material { channel_info };
+        return MaterialInfo { channel_info };
     }
 
     pub fn find_channel_index(&self, type_name: &String, channel: &String) -> Result<u32, ()> {

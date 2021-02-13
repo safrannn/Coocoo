@@ -1,10 +1,10 @@
 use super::ast::*;
 use super::coocoo::ProgramParser;
-use super::image_library::*;
+// use super::image_library::*;
 use super::log_rule;
 use super::symbol::*;
 use std::collections::HashMap;
-use walrus::FunctionId;
+// use walrus::FunctionId;
 use walrus::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
@@ -19,7 +19,7 @@ pub struct Memory {
 impl Memory {
     pub fn new(module: &mut walrus::Module) -> Self {
         return Memory {
-            id: module.memories.add_local(true, 10, Some(100)),
+            id: module.memories.add_local(false, 10, Some(100)),
             current_offset: 0,
         };
     }
@@ -108,7 +108,7 @@ impl Compiler {
             &mut self.module,
             &mut builder,
             &mut symbol_table,
-            &mut vec![&memory],
+            &mut memory,
         );
         if function_compile_result.is_ok() {
             let function_id = function_builder.finish(vec![], &mut self.module.funcs);
@@ -155,7 +155,7 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
     );
     lib_func_list.insert(
         "grayscale".to_string(),
-        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+        (vec![ValType::I32], vec![ValType::I32]),
     );
     return lib_func_list;
 }
@@ -163,8 +163,7 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
 #[wasm_bindgen]
 pub fn code_to_wasm(src: String, image_names: &JsValue) -> Vec<u8> {
     let mut compiler = Compiler::new();
-    let image_names: Vec<String> = parse_image_names(image_names);
-    compiler.run(src, image_names)
+    compiler.run(src, parse_image_names(image_names))
 }
 
 #[cfg(test)]
@@ -216,39 +215,42 @@ mod tests {
     #[test]
     fn rust_test2() {
         let _functions = match ProgramParser::new().parse(
-            "func main(){number1 = 1;
-                img1 = blank_image(10,10);}",
+            "func main(){
+                var num1:N;
+                var num2:N = 1;
+                var img1:I = blank_image(10,10);
+            }",
         ) {
             Ok(result) => result,
             Err(e) => panic!(e),
         };
     }
 
-    #[test]
-    fn rust_test3() {
-        let wasm_bytes: Vec<u8> = vec![
-            0, 97, 115, 109, 1, 0, 0, 0, 1, 132, 128, 128, 128, 0, 1, 96, 0, 0, 3, 130, 128, 128,
-            128, 0, 1, 0, 7, 136, 128, 128, 128, 0, 1, 4, 109, 97, 105, 110, 0, 0, 10, 132, 128,
-            128, 128, 0, 1, 2, 0, 11, 0, 167, 128, 128, 128, 0, 9, 112, 114, 111, 100, 117, 99,
-            101, 114, 115, 1, 12, 112, 114, 111, 99, 101, 115, 115, 101, 100, 45, 98, 121, 1, 6,
-            119, 97, 108, 114, 117, 115, 6, 48, 46, 49, 56, 46, 48,
-        ];
-        // module
-        //     (type (;0;) (func))
-        //     (func (;0;) (type 0))
-        //     (export "main" (func 0)))
+    // #[test]
+    // fn rust_test3() {
+    //     let wasm_bytes: Vec<u8> = vec![
+    //         0, 97, 115, 109, 1, 0, 0, 0, 1, 132, 128, 128, 128, 0, 1, 96, 0, 0, 3, 130, 128, 128,
+    //         128, 0, 1, 0, 7, 136, 128, 128, 128, 0, 1, 4, 109, 97, 105, 110, 0, 0, 10, 132, 128,
+    //         128, 128, 0, 1, 2, 0, 11, 0, 167, 128, 128, 128, 0, 9, 112, 114, 111, 100, 117, 99,
+    //         101, 114, 115, 1, 12, 112, 114, 111, 99, 101, 115, 115, 101, 100, 45, 98, 121, 1, 6,
+    //         119, 97, 108, 114, 117, 115, 6, 48, 46, 49, 56, 46, 48,
+    //     ];
+    //     // module
+    //     //     (type (;0;) (func))
+    //     //     (func (;0;) (type 0))
+    //     //     (export "main" (func 0)))
 
-        let store = Store::new(&JIT::new(&Cranelift::default()).engine());
-        let module = wasmer::Module::new(&store, &wasm_bytes[..]).expect("create module");
-        let import_object = wasmer::imports! {};
-        let instance = wasmer::Instance::new(&module, &import_object).expect("instantiate module");
-        let _func_main: NativeFunc = instance
-            .exports
-            .get_native_function("main")
-            .expect("add_one function in Wasm module");
-        let result = _func_main.call().unwrap();
-        log(&format!("Result: {:?}", result));
-    }
+    //     let store = Store::new(&JIT::new(&Cranelift::default()).engine());
+    //     let module = wasmer::Module::new(&store, &wasm_bytes[..]).expect("create module");
+    //     let import_object = wasmer::imports! {};
+    //     let instance = wasmer::Instance::new(&module, &import_object).expect("instantiate module");
+    //     let _func_main: NativeFunc = instance
+    //         .exports
+    //         .get_native_function("main")
+    //         .expect("add_one function in Wasm module");
+    //     let result = _func_main.call().unwrap();
+    //     log(&format!("Result: {:?}", result));
+    // }
 
     // #[test]
     // fn rust_test4() {

@@ -6,10 +6,6 @@ log_rule!();
 
 #[wasm_bindgen]
 pub fn darken(image_id: i32, value: i32) -> i32 {
-    log(&format!(
-        "paramter image_id:{:?}, value:{:?}",
-        image_id, value
-    ));
     let mut result_image_data = IMAGE_LIBRARY
         .lock()
         .unwrap()

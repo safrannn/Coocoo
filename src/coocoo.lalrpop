@@ -50,7 +50,7 @@ Term: Box<Expr> = {
 
 Statement: Statement = {
     "var" <identifier:Identifier> ":" <var_type:Identifier> => Statement::Declare(identifier, var_type, None),
-    "var" <identifier:Identifier> ":" <var_type:Identifier> ":" <expr:Expr>=> Statement::Declare(identifier, var_type, Some(expr)),
+    "var" <identifier:Identifier> ":" <var_type:Identifier> "=" <expr:Expr>=> Statement::Declare(identifier, var_type, Some(expr)),
     <identifier:Identifier> "=" <expr:Expr>  => Statement::Assignment(identifier, expr),
     "{" <statements:Semicolon<Statement>> "}" => Statement::Block(statements),
     

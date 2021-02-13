@@ -14,7 +14,7 @@ pub trait Compile {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<&Memory>,
+        memories: &mut Memory,
     ) -> Result<(), &'static str>;
 }
 
@@ -44,7 +44,7 @@ impl Compile for Opcode {
         _module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         _symbol_table: &mut SymbolTable,
-        _memories: &mut Vec<&Memory>,
+        _memories: &mut Memory,
     ) -> Result<(), &'static str> {
         use self::Opcode::*;
         match *self {
@@ -99,7 +99,7 @@ impl Compile for Expr {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<&Memory>,
+        memories: &mut Memory,
     ) -> Result<(), &'static str> {
         use self::Expr::*;
         match *self {
@@ -258,7 +258,7 @@ impl Compile for Statement {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<&Memory>,
+        memories: &mut Memory,
     ) -> Result<(), &'static str> {
         use self::Statement::*;
         match &*self {
@@ -271,8 +271,9 @@ impl Compile for Statement {
                 }
 
                 match var_type.as_str() {
-                    "N" | "Number" | "number" => {
+                    "N" | "Number" | "n" | "number" => {
                         let local_id = module.locals.add(ValType::I32);
+                        symbol_table.insert(identifier.to_string(), Attribute::Number(local_id));
                         if expr.is_some() {
                             let expr = &**(expr.as_ref().unwrap());
                             match expr {
@@ -314,10 +315,6 @@ impl Compile for Statement {
                                     } else {
                                         builder.local_set(local_id);
                                     }
-                                    symbol_table.insert(
-                                        identifier.to_string(),
-                                        Attribute::Number(local_id),
-                                    );
                                 }
                                 _ => {
                                     log(&format!(
@@ -331,66 +328,67 @@ impl Compile for Statement {
                         }
                         return Ok(());
                     }
-                    "I" | "Image" | "image" => {
+                    "I" | "Image" | "i" | "image" => {
                         let local_id = module.locals.add(ValType::I32);
 
                         if expr.is_some() {
                             let expr = &**(expr.as_ref().unwrap());
                             match expr {
                                 Expr::Variable(right_ident) => {
-                                    if let Some(right) = symbol_table.lookup(&right_ident) {
-                                        match right {
-                                            Attribute::Image(right_local_id, _) => {
-                                                builder.local_get(*right_local_id);
-                                                builder.local_set(local_id);
-                                            }
-                                            _ => {
-                                                log(&format!(
-                                                    "Error: {:?} is not an image.",
-                                                    right_ident
-                                                ));
-                                                symbol_table.remove(identifier);
-                                                return Err("Error");
-                                            }
-                                        }
-                                    } else {
+                                    if symbol_table.lookup(&right_ident).is_none() {
                                         log(&format!("Error: {:?} does not exist.", right_ident));
-                                        symbol_table.remove(identifier);
                                         return Err("Error");
                                     }
-                                    symbol_table.insert(
-                                        identifier.to_string(),
-                                        Attribute::Number(local_id),
-                                    );
+                                    match symbol_table.lookup(&right_ident).unwrap().clone() {
+                                        Attribute::Image(right_local_id, right_image) => {
+                                            builder.local_get(right_local_id);
+                                            builder.local_set(local_id);
+                                            symbol_table.insert(
+                                                identifier.to_string(),
+                                                Attribute::Image(
+                                                    right_local_id.clone(),
+                                                    right_image.clone(),
+                                                ),
+                                            );
+                                        }
+                                        _ => {
+                                            log(&format!(
+                                                "Error: {:?} is not an image.",
+                                                right_ident
+                                            ));
+                                            return Err("Error");
+                                        }
+                                    }
                                 }
                                 Expr::Call(right_ident, _) => {
-                                    if let Some(right) = symbol_table.lookup(&right_ident) {
-                                        match right {
-                                            Attribute::Func(right_func_id, _, _) => {
-                                                let right_compile_result = expr.compile(
-                                                    module,
-                                                    builder,
-                                                    symbol_table,
-                                                    memories,
-                                                );
-                                                if !right_compile_result.is_ok() {
-                                                    symbol_table.remove(identifier);
-                                                    return right_compile_result;
-                                                }
-                                            }
-                                            _ => {
-                                                log(&format!(
-                                                    "Error: {:?} is not an image.",
-                                                    right_ident
-                                                ));
+                                    if symbol_table.lookup(&right_ident).is_none() {
+                                        log(&format!("Error: {:?} does not exist.", right_ident));
+                                        return Err("Error");
+                                    }
+                                    match symbol_table.lookup(&right_ident).unwrap().clone() {
+                                        Attribute::Func(_, _, _) => {
+                                            symbol_table.insert(
+                                                identifier.to_string(),
+                                                Attribute::Image(local_id.clone(), None),
+                                            );
+                                            let assignment_statement = Statement::Assignment(
+                                                identifier.clone(),
+                                                Box::new(expr.clone()),
+                                            );
+                                            let assignment_compile_result = assignment_statement
+                                                .compile(module, builder, symbol_table, memories);
+                                            if assignment_compile_result.is_err() {
                                                 symbol_table.remove(identifier);
-                                                return Err("Error");
+                                                return assignment_compile_result;
                                             }
                                         }
-                                    } else {
-                                        log(&format!("Error: {:?} does not exist.", right_ident));
-                                        symbol_table.remove(identifier);
-                                        return Err("Error");
+                                        _ => {
+                                            log(&format!(
+                                                "Error: {:?} is not a function.",
+                                                right_ident
+                                            ));
+                                            return Err("Error");
+                                        }
                                     }
                                 }
                                 _ => {
@@ -408,7 +406,7 @@ impl Compile for Statement {
                             .insert(identifier.to_string(), Attribute::Image(local_id, None));
                         return Ok(());
                     }
-                    "M" | "Material" | "material" => {
+                    "M" | "Material" | "m" | "material" => {
                         return Ok(());
                     }
                     _ => {
@@ -581,7 +579,7 @@ impl Compile for Prototype {
         _module: &mut walrus::Module,
         _builder: &mut InstrSeqBuilder,
         _symbol_table: &mut SymbolTable,
-        _memories: &mut Vec<&Memory>,
+        _memories: &mut Memory,
     ) -> Result<(), &'static str> {
         return Ok(());
     }
@@ -608,7 +606,7 @@ impl Compile for Function {
         module: &mut walrus::Module,
         builder: &mut InstrSeqBuilder,
         symbol_table: &mut SymbolTable,
-        memories: &mut Vec<&Memory>,
+        memories: &mut Memory,
     ) -> Result<(), &'static str> {
         let _prototype_compile_result =
             self.prototype

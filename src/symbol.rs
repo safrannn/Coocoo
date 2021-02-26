@@ -65,7 +65,7 @@ impl SymbolTable {
 pub enum Attribute {
     Number(Id<walrus::Local>),
     Image(Id<walrus::Local>, Option<Image>), // local_id, image info
-    Material(walrus::MemoryId, u32, String), // memoryid, offset, material type
+    Material(walrus::MemoryId, u32, &'static str), // memoryid, offset, material type
     Func(
         id_arena::Id<walrus::Function>,
         Vec<walrus::ValType>,
@@ -97,7 +97,7 @@ impl Image {
 pub struct LibraryTracker {
     images: HashMap<String, Image>,
     pub next_image_id: i32,
-    // material: HashMap<String, Material>,
+    material_info: MaterialInfo,
 }
 
 impl LibraryTracker {
@@ -105,7 +105,7 @@ impl LibraryTracker {
         LibraryTracker {
             images: HashMap::new(),
             next_image_id: 0,
-            // material: HashMap::new(),
+            material_info: MaterialInfo::new(),
         }
     }
 
@@ -133,6 +133,15 @@ impl LibraryTracker {
     pub fn find_image(&self, name: &String) -> Option<&Image> {
         self.images.get(name)
     }
+
+    pub fn find_channel_index(
+        &self,
+        material_type_name: &'static str,
+        channel: &'static str,
+    ) -> Result<u32, ()> {
+        self.material_info
+            .find_channel_index(material_type_name, channel)
+    }
 }
 
 #[derive(Clone)]
@@ -148,7 +157,6 @@ impl MaterialInfo {
             vec![
                 "diffuse",
                 "metalness",
-                "specular",
                 "normal",
                 "transparency",
                 "roughness",
@@ -162,7 +170,11 @@ impl MaterialInfo {
         return MaterialInfo { channel_info };
     }
 
-    pub fn find_channel_index(&self, type_name: &String, channel: &String) -> Result<u32, ()> {
+    pub fn find_channel_index(
+        &self,
+        type_name: &'static str,
+        channel: &'static str,
+    ) -> Result<u32, ()> {
         if let Some(channels) = self.channel_info.get(type_name) {
             for (i, &v) in channels.iter().enumerate() {
                 if v == channel {

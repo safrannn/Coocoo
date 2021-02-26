@@ -5,12 +5,18 @@ use super::log_rule;
 use super::symbol::*;
 use std::collections::HashMap;
 // use walrus::FunctionId;
+use id_arena::*;
 use walrus::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
 log_rule!();
 
+#[derive(Clone)]
+pub enum MemoryValue {
+    walrus_id(Id<walrus::Local>),
+    i32_value(i32),
+}
 pub struct Memory {
     id: walrus::MemoryId,
     current_offset: u32,
@@ -24,19 +30,66 @@ impl Memory {
         };
     }
 
-    pub fn store(&mut self, builder: &mut InstrSeqBuilder, align: u32, offset: Option<u32>) {
-        let offset = if offset.is_some() {
+    pub fn store(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        offset: Option<u32>,
+        value: Vec<MemoryValue>,
+    ) -> (walrus::MemoryId, u32) {
+        let mut offset = if offset.is_some() {
             offset.unwrap()
         } else {
             self.current_offset.clone()
         };
-        builder.store(
-            self.id,
-            walrus::ir::StoreKind::I32 { atomic: true },
-            walrus::ir::MemArg { align, offset },
-        );
+        let start_offset = offset;
+        let align = 2;
+        let n = value.len();
+        for i in 0..n {
+            match value[i] {
+                MemoryValue::walrus_id(id) => {
+                    builder.local_get(id);
+                }
+                MemoryValue::i32_value(number) => {
+                    builder.i32_const(number);
+                }
+            }
+            builder.store(
+                self.id,
+                walrus::ir::StoreKind::I32 { atomic: false },
+                walrus::ir::MemArg { align, offset },
+            );
+            offset += u32::pow(2, align);
+        }
+        self.current_offset = offset;
+        return (self.id.clone(), start_offset);
+    }
 
-        self.current_offset += align;
+    pub fn copy(
+        &mut self,
+        builder: &mut InstrSeqBuilder,
+        offset_1: u32,
+        offset_2: u32,
+        length: u32,
+    ) {
+        let align = 2;
+        for i in 0..length as usize {
+            builder.load(
+                self.id,
+                walrus::ir::LoadKind::I32 { atomic: false },
+                walrus::ir::MemArg {
+                    align,
+                    offset: offset_1 + i as u32 * u32::pow(2, align),
+                },
+            );
+            builder.store(
+                self.id,
+                walrus::ir::StoreKind::I32 { atomic: false },
+                walrus::ir::MemArg {
+                    align,
+                    offset: offset_2 + i as u32 * u32::pow(2, align),
+                },
+            );
+        }
     }
 }
 

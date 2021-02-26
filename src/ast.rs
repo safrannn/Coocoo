@@ -1,4 +1,4 @@
-use super::compiler::Memory;
+use super::compiler::{Memory, MemoryValue};
 use super::log_rule;
 use super::symbol::*;
 use std::fmt::{Debug, Error, Formatter};
@@ -407,7 +407,29 @@ impl Compile for Statement {
                         return Ok(());
                     }
                     "M" | "Material" | "m" | "material" => {
-                        return Ok(());
+                        let (mem_id, offset) =
+                            memories.store(builder, None, vec![MemoryValue::i32_value(0); 32]);
+                        symbol_table.insert(
+                            identifier.clone(),
+                            Attribute::Material(mem_id, offset, "PBRMetalness"),
+                        );
+
+                        if let Some(expression) = expr {
+                            let assignment_statement = Statement::Assignment(
+                                identifier.clone(),
+                                Box::new(*expression.clone()),
+                            );
+                            let assignment_compile_result = assignment_statement.compile(
+                                module,
+                                builder,
+                                symbol_table,
+                                memories,
+                            );
+                            if assignment_compile_result.is_err() {
+                                symbol_table.remove(identifier);
+                                return assignment_compile_result;
+                            }
+                        }
                     }
                     _ => {
                         log(&format!(
@@ -535,7 +557,87 @@ impl Compile for Statement {
                             }
                         }
                     }
-                    Attribute::Material(_, _, _) => {}
+                    Attribute::Material(_, left_offset, _) => match expr {
+                        Expr::Variable(right_ident) => {
+                            if let Some(Attribute::Material(_, right_offset, _)) =
+                                symbol_table.lookup(right_ident)
+                            {
+                                memories.copy(
+                                    builder,
+                                    right_offset.clone(),
+                                    left_offset.clone(),
+                                    32,
+                                );
+                            } else {
+                                log(&format!(
+                                    "Error: Please define {:?} with a material variable;",
+                                    identifier
+                                ));
+                                return Err("Error");
+                            }
+                        }
+                        Expr::Call(right_func_ident, right_func_params) => {
+                            if *right_func_ident != "new_material".to_string() {
+                                log(&format!(
+                                    "Error: Please call new_material(width,height) to define {:?};",
+                                    identifier
+                                ));
+                                return Err("Error");
+                            }
+                            if right_func_params.len() != 2 {
+                                log(&format!(
+                                    "Error: Please call new_material(width,height) to define {:?};",
+                                    identifier
+                                ));
+                                return Err("Error");
+                            }
+
+                            let width = &*right_func_params[0];
+                            let height = &*right_func_params[1];
+
+                            if width
+                                .compile(module, builder, symbol_table, memories)
+                                .is_ok()
+                            {
+                                if let Expr::Number(width_i32) = width {
+                                    memories.store(
+                                        builder,
+                                        Some(left_offset),
+                                        vec![MemoryValue::i32_value(*width_i32); 32],
+                                    );
+                                } else {
+                                    log(&format!(
+                                        "Error: Please use a number for material's width",
+                                    ));
+                                    return Err("Error");
+                                }
+                            }
+                            if height
+                                .compile(module, builder, symbol_table, memories)
+                                .is_ok()
+                            {
+                                if let Expr::Number(height_i32) = height {
+                                    memories.store(
+                                        builder,
+                                        Some(left_offset + 4),
+                                        vec![MemoryValue::i32_value(*height_i32); 32],
+                                    );
+                                } else {
+                                    log(&format!(
+                                        "Error: Please use a number for material's height",
+                                    ));
+                                    return Err("Error");
+                                }
+                            }
+                        }
+                        _ => {
+                            log(&format!(
+                                "Error: Please define the material {:?} with another material variable, or call new_material(width,height) function",
+                                identifier
+                            ));
+                            return Err("Error");
+                        }
+                    },
                     _ => {}
                 }
             }

@@ -568,8 +568,8 @@ impl Compile for Statement {
                             {
                                 memories.copy(
                                     builder,
-                                    right_offset.clone(),
                                     left_offset.clone(),
+                                    right_offset.clone(),
                                     32,
                                 );
                             } else {
@@ -599,39 +599,25 @@ impl Compile for Statement {
                             let width = &*right_func_params[0];
                             let height = &*right_func_params[1];
 
-                            if width
-                                .compile(module, builder, symbol_table, memories)
-                                .is_ok()
-                            {
-                                if let Expr::Number(width_i32) = width {
-                                    memories.store(
-                                        builder,
-                                        Some(left_offset),
-                                        vec![MemoryValue::i32(*width_i32); 32],
-                                    );
-                                } else {
-                                    log(&format!(
-                                        "Error: Please use a number for material's width",
-                                    ));
-                                    return Err("Error");
-                                }
+                            if let Expr::Number(width_i32) = width {
+                                memories.store(
+                                    builder,
+                                    Some(left_offset),
+                                    vec![MemoryValue::i32(*width_i32)],
+                                );
+                            } else {
+                                log(&format!("Error: Please use a number for material's width",));
+                                return Err("Error");
                             }
-                            if height
-                                .compile(module, builder, symbol_table, memories)
-                                .is_ok()
-                            {
-                                if let Expr::Number(height_i32) = height {
-                                    memories.store(
-                                        builder,
-                                        Some(left_offset + 4),
-                                        vec![MemoryValue::i32(*height_i32); 32],
-                                    );
-                                } else {
-                                    log(&format!(
-                                        "Error: Please use a number for material's height",
-                                    ));
-                                    return Err("Error");
-                                }
+                            if let Expr::Number(height_i32) = height {
+                                memories.store(
+                                    builder,
+                                    Some(left_offset + 4),
+                                    vec![MemoryValue::i32(*height_i32)],
+                                );
+                            } else {
+                                log(&format!("Error: Please use a number for material's height",));
+                                return Err("Error");
                             }
                         }
                         _ => {

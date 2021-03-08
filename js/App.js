@@ -718,7 +718,7 @@ async function main() {
         let output_image_info = output[1]; // image_name, image_id
         let output_material_info = output[2]; // position in mem, [material_name, channel_name]
         // console.log(output)
-        console.log("output_material_info", output_material_info)
+        // console.log("output_material_info", output_material_info)
 
 
 
@@ -748,7 +748,7 @@ async function main() {
         instance.exports.main();
 
         var wasm_memory = new Uint32Array(instance.exports.mem.buffer)
-        console.log(wasm_memory.slice(0, 40))
+        // console.log(wasm_memory.slice(0, 200))
 
         if (!has_error) {
             observableStateStore.addConsoleMessage("✔ Execution finished.");

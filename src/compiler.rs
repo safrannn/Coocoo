@@ -20,14 +20,14 @@ pub enum MemoryValue {
 
 pub struct Memory {
     pub id: walrus::MemoryId,
-    current_offset: u32,
+    last_offset: u32,
 }
 
 impl Memory {
     pub fn new(module: &mut walrus::Module) -> Self {
         return Memory {
             id: module.memories.add_local(false, 10, Some(100)),
-            current_offset: 0,
+            last_offset: 0,
         };
     }
 
@@ -40,12 +40,11 @@ impl Memory {
         let mut offset = if offset.is_some() {
             offset.unwrap()
         } else {
-            self.current_offset.clone()
+            self.last_offset.clone()
         };
         let start_offset = offset;
         let align = 2;
         let n = value.len();
-
         for i in 0..n {
             builder.i32_const(offset as i32);
             offset += u32::pow(2, align);
@@ -65,7 +64,7 @@ impl Memory {
                 walrus::ir::MemArg { align, offset: 0 },
             );
         }
-        self.current_offset = offset;
+        self.last_offset = self.last_offset.max(offset);
         return (self.id.clone(), start_offset);
     }
 
@@ -77,23 +76,24 @@ impl Memory {
         length: u32,
     ) {
         let align = 2;
-        for i in 0..length as usize {
+        let mut offset_1 = offset_1;
+        let mut offset_2 = offset_2;
+        for _ in 0..length as usize {
+            builder.i32_const(offset_1 as i32);
+            builder.i32_const(offset_2 as i32);
             builder.load(
                 self.id,
                 walrus::ir::LoadKind::I32 { atomic: false },
-                walrus::ir::MemArg {
-                    align,
-                    offset: offset_1 + i as u32 * u32::pow(2, align),
-                },
+                walrus::ir::MemArg { align, offset: 0 },
             );
+
             builder.store(
                 self.id,
                 walrus::ir::StoreKind::I32 { atomic: false },
-                walrus::ir::MemArg {
-                    align,
-                    offset: offset_2 + i as u32 * u32::pow(2, align),
-                },
+                walrus::ir::MemArg { align, offset: 0 },
             );
+            offset_1 += u32::pow(2, align);
+            offset_2 += u32::pow(2, align);
         }
     }
 }

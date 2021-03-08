@@ -1,5 +1,5 @@
 use super::log_rule;
-use super::symbol;
+// use super::symbol;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -74,17 +74,19 @@ impl ImageLibrary {
         self.export_items.clear();
     }
 
-    // pub fn export(&mut self) -> JsValue {
-    //     let mut result: HashMap<String, ImageData> = HashMap::new();
-    //     for (id, name) in self.export_items.iter() {
-    //         if let Some(data) = self.content.get_mut(id) {
-    //             let mut new_data = data.clone();
-    //             new_data.name = name.clone();
-    //             result.insert(name.clone(), new_data);
-    //         }
-    //     }
-    //     JsValue::from_serde(&result).unwrap()
-    // }
+    // return [name] [ImageData]
+    pub fn export(&mut self, export_info: &JsValue) -> JsValue {
+        let export_info: HashMap<String, i32> = export_info.into_serde().unwrap();
+        let mut result: HashMap<String, ImageData> = HashMap::new();
+        for (name, id) in export_info.iter() {
+            if let Some(data) = self.content.get_mut(id) {
+                let mut new_data = data.clone();
+                new_data.name = name.clone();
+                result.insert(name.clone(), new_data);
+            }
+        }
+        return JsValue::from_serde(&result).unwrap();
+    }
 }
 
 lazy_static! {
@@ -100,10 +102,10 @@ pub fn library_add_image(name: String, width: i32, height: i32, data: Vec<u8>) {
         .add_image(name, width, height, data);
 }
 
-// #[wasm_bindgen]
-// pub fn library_export() -> JsValue {
-//     IMAGE_LIBRARY.lock().unwrap().export()
-// }
+#[wasm_bindgen]
+pub fn library_export(export_info: &JsValue) -> JsValue {
+    IMAGE_LIBRARY.lock().unwrap().export(export_info)
+}
 
 #[wasm_bindgen]
 pub fn library_reset() {

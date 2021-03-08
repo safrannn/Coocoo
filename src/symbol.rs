@@ -1,10 +1,12 @@
 use super::*;
 use id_arena::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 
 log_rule!();
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SymbolTable {
     table: HashMap<String, Attribute>,
     pub library_tracker: LibraryTracker,
@@ -23,6 +25,10 @@ impl SymbolTable {
             Attribute::Image(_, image) => {
                 self.library_tracker
                     .add_image(Some(ident.clone()), image.clone());
+            }
+            Attribute::Material(_, offset, material_type) => {
+                self.library_tracker
+                    .add_material(ident.clone(), offset, material_type);
             }
             _ => {}
         }
@@ -76,7 +82,7 @@ pub enum Attribute {
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Image {
     pub id: i32,
 }
@@ -93,11 +99,13 @@ impl Image {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct LibraryTracker {
     images: HashMap<String, Image>,
     pub next_image_id: i32,
+    image_exports: HashMap<String, i32>, // ident, image_id
     material_info: MaterialInfo,
+    materials: HashMap<String, (u32, &'static str)>, // ident, (starting offset, type)
 }
 
 impl LibraryTracker {
@@ -105,7 +113,9 @@ impl LibraryTracker {
         LibraryTracker {
             images: HashMap::new(),
             next_image_id: 0,
+            image_exports: HashMap::new(),
             material_info: MaterialInfo::new(),
+            materials: HashMap::new(),
         }
     }
 
@@ -134,17 +144,38 @@ impl LibraryTracker {
         self.images.get(name)
     }
 
-    pub fn find_channel_index(
-        &self,
-        material_type_name: &'static str,
-        channel: &'static str,
-    ) -> Result<u32, ()> {
-        self.material_info
-            .find_channel_index(material_type_name, channel)
+    pub fn add_export_image(&mut self, image_name: String) {
+        if let Some(image) = self.images.get(&image_name) {
+            self.image_exports.insert(image_name.clone(), image.id);
+        }
+    }
+
+    pub fn export_images(&self) -> JsValue {
+        JsValue::from_serde(&self.image_exports).unwrap()
+    }
+
+    pub fn add_material(&mut self, ident: String, offset: u32, material_type: &'static str) {
+        self.materials.insert(ident, (offset, material_type));
+    }
+
+    pub fn export_materials(&mut self) -> JsValue {
+        let mut result: HashMap<i32, Vec<&str>> = HashMap::new();
+        for (ident, (start, material_type)) in &self.materials {
+            if let Ok(channels) = self.material_info.get_material_channels(*material_type) {
+                let mut position = *start as i32 + 2;
+                for channel in channels {
+                    result.insert(position, vec![ident, channel]);
+                    position += 1;
+                }
+            } else {
+                continue;
+            }
+        }
+        JsValue::from_serde(&result).unwrap()
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MaterialInfo {
     channel_info: HashMap<String, Vec<&'static str>>,
 }
@@ -172,10 +203,10 @@ impl MaterialInfo {
 
     pub fn find_channel_index(
         &self,
-        type_name: &'static str,
+        material_type: &'static str,
         channel: &'static str,
     ) -> Result<u32, ()> {
-        if let Some(channels) = self.channel_info.get(type_name) {
+        if let Some(channels) = self.channel_info.get(material_type) {
             for (i, &v) in channels.iter().enumerate() {
                 if v == channel {
                     return Ok(i as u32);
@@ -183,5 +214,13 @@ impl MaterialInfo {
             }
         }
         return Err(());
+    }
+
+    pub fn get_material_channels(&self, material: &'static str) -> Result<Vec<&'static str>, ()> {
+        if let Some(channels) = self.channel_info.get(material) {
+            return Ok(channels.to_vec());
+        } else {
+            return Err(());
+        }
     }
 }

@@ -230,6 +230,7 @@ pub enum Statement {
     Declare(String, String, Option<Box<Expr>>),
     Assignment(String, Box<Expr>),
     Block(Vec<Statement>),
+    Call(String, Vec<Box<Expr>>),
 }
 
 impl Debug for Statement {
@@ -247,6 +248,9 @@ impl Debug for Statement {
             }
             Self::Block(ref statements) => {
                 write!(fmt, "statements: {:?}", statements)
+            }
+            Self::Call(ref identifier, ref exprs) => {
+                write!(fmt, "function{:?}({:?})", identifier, exprs)
             }
         }
     }
@@ -408,7 +412,7 @@ impl Compile for Statement {
                     }
                     "M" | "Material" | "m" | "material" => {
                         let (mem_id, offset) =
-                            memories.store(builder, None, vec![MemoryValue::i32_value(0); 32]);
+                            memories.store(builder, None, vec![MemoryValue::i32(i32::MAX); 32]);
                         symbol_table.insert(
                             identifier.clone(),
                             Attribute::Material(mem_id, offset, "PBRMetalness"),
@@ -603,7 +607,7 @@ impl Compile for Statement {
                                     memories.store(
                                         builder,
                                         Some(left_offset),
-                                        vec![MemoryValue::i32_value(*width_i32); 32],
+                                        vec![MemoryValue::i32(*width_i32); 32],
                                     );
                                 } else {
                                     log(&format!(
@@ -620,7 +624,7 @@ impl Compile for Statement {
                                     memories.store(
                                         builder,
                                         Some(left_offset + 4),
-                                        vec![MemoryValue::i32_value(*height_i32); 32],
+                                        vec![MemoryValue::i32(*height_i32); 32],
                                     );
                                 } else {
                                     log(&format!(
@@ -655,6 +659,43 @@ impl Compile for Statement {
 
                 return Ok(());
             }
+            Call(ref identifier, ref exprs) => match identifier.as_str() {
+                "logger" => {
+                    log(&format!("logging: {:?}", exprs));
+                }
+                "show" => {
+                    for expr in exprs {
+                        match &**expr {
+                            Expr::Variable(expr_ident) => {
+                                if symbol_table.lookup(&expr_ident).is_none() {
+                                    log(&format!(
+                                        "Error: {:?} doesn't exist. Please decalre or define it. Example: var image0:Image; or var image1:Image = file_001;",
+                                        identifier
+                                    ));
+                                    return Err("Error");
+                                }
+                                match symbol_table.lookup(&expr_ident).unwrap().clone() {
+                                    Attribute::Image(_, _) => {
+                                        symbol_table
+                                            .library_tracker
+                                            .add_export_image(expr_ident.clone());
+                                    }
+                                    Attribute::Material(_, _, _) => {}
+                                    _ => {
+                                        log(&format!("Error: show() can only be used for image and material. show() is default for material."));
+                                    }
+                                }
+                            }
+                            _ => {
+                                log(&format!("Error: show() can only be used for image and material. show() is default for material."));
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    log(&format!("Error: Please store function {:?}'s return in a variable. Example: var image1:m = grayscale(file_001)", identifier));
+                }
+            },
         }
         return Ok(());
     }

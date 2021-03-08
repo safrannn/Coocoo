@@ -713,8 +713,16 @@ async function main() {
         observableStateStore.clearConsoleMessage();
 
         let image_names = processImageInput();
-        let output_wasm_buffer = compiler.code_to_wasm(observableStateStore.code, image_names);
-        var has_error = observableStateStore.consoleMessage.length == 0 ? false : true
+        let output = compiler.code_to_wasm(observableStateStore.code, image_names);
+        let output_wasm_buffer = new Uint8Array(output[0]);
+        let output_image_info = output[1]; // image_name, image_id
+        let output_material_info = output[2]; // position in mem, [material_name, channel_name]
+        // console.log(output)
+        console.log("output_material_info", output_material_info)
+
+
+
+        let has_error = observableStateStore.consoleMessage.length == 0 ? false : true
         if (!has_error) {
             observableStateStore.addConsoleMessage("\n✔ Compile finished.");
         }
@@ -738,6 +746,10 @@ async function main() {
         };
         let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);
         instance.exports.main();
+
+        var wasm_memory = new Uint32Array(instance.exports.mem.buffer)
+        console.log(wasm_memory.slice(0, 40))
+
         if (!has_error) {
             observableStateStore.addConsoleMessage("✔ Execution finished.");
         }
@@ -754,10 +766,24 @@ async function main() {
             observableStateStore.printConsoleWasm(wat);
         }
 
-        // export_images(compiler.library_export());
+        let export_info = process_export(output_image_info, wasm_memory, output_material_info);
+        export_images(compiler.library_export(export_info));
         if (!has_error) {
             observableStateStore.addConsoleMessage("✔ Export finished.");
         }
+    }
+
+    function process_export(output_image_info, wasm_memory, output_material_info) {
+        let export_info = {}
+        for (let [name, id] of Object.entries(output_image_info)) {
+            export_info[name] = id;
+        }
+        for (let [offset, names] of Object.entries(output_material_info)) {
+            if (wasm_memory[offset] < 2147483647) {
+                export_info[names[0] + "_" + names[1]] = wasm_memory[offset];
+            }
+        }
+        return export_info
     }
 
     function export_images(result_images) {

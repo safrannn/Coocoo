@@ -15,10 +15,11 @@ log_rule!();
 #[derive(Clone)]
 pub enum MemoryValue {
     walrus_id(Id<walrus::Local>),
-    i32_value(i32),
+    i32(i32),
 }
+
 pub struct Memory {
-    id: walrus::MemoryId,
+    pub id: walrus::MemoryId,
     current_offset: u32,
 }
 
@@ -44,21 +45,25 @@ impl Memory {
         let start_offset = offset;
         let align = 2;
         let n = value.len();
+
         for i in 0..n {
+            builder.i32_const(offset as i32);
+            offset += u32::pow(2, align);
+
             match value[i] {
                 MemoryValue::walrus_id(id) => {
                     builder.local_get(id);
                 }
-                MemoryValue::i32_value(number) => {
+                MemoryValue::i32(number) => {
                     builder.i32_const(number);
                 }
             }
+
             builder.store(
                 self.id,
                 walrus::ir::StoreKind::I32 { atomic: false },
-                walrus::ir::MemArg { align, offset },
+                walrus::ir::MemArg { align, offset: 0 },
             );
-            offset += u32::pow(2, align);
         }
         self.current_offset = offset;
         return (self.id.clone(), start_offset);
@@ -108,7 +113,7 @@ impl Compiler {
         }
     }
 
-    fn import_lib(&mut self, symbol_table: &mut SymbolTable) {
+    fn import_lib(&mut self) {
         let lib_func_list = library_function_list();
         for (name, (args, result)) in lib_func_list.iter() {
             let type_id = if let Some(t_id) = self.module.types.find(args, result) {
@@ -121,46 +126,41 @@ impl Compiler {
                 .globals
                 .add_import(walrus::ValType::Funcref, false, import_id);
 
-            symbol_table.insert(
+            self.symbol_table.insert(
                 name.clone(),
                 Attribute::Func(func_id, args.to_vec(), result.to_vec()),
             );
         }
     }
 
-    fn import_images(
-        &mut self,
-        builder: &mut InstrSeqBuilder,
-        image_names: &Vec<String>,
-        symbol_table: &mut SymbolTable,
-    ) {
+    fn import_images(&mut self, builder: &mut InstrSeqBuilder, image_names: &Vec<String>) {
         for i in 0..image_names.len() as i32 {
             let image_name = image_names[i as usize].clone().trim().to_string();
             builder.i32_const(i);
             let image_id = self.module.locals.add(walrus::ValType::I32);
             builder.local_set(image_id);
             let image = Image::new(i);
-            symbol_table.insert(image_name.clone(), Attribute::Image(image_id, Some(image)));
+            self.symbol_table
+                .insert(image_name.clone(), Attribute::Image(image_id, Some(image)));
         }
     }
 
     fn compile(&mut self, src: String, image_names: Vec<String>) -> Vec<u8> {
         let mut symbol_table: SymbolTable = SymbolTable::new();
-        self.import_lib(&mut symbol_table);
+        self.import_lib();
 
         self.src = "func main(){".to_string() + &src + &"}".to_string();
         let functions = ProgramParser::new().parse(&self.src).unwrap();
         let function = &functions[0];
         let mut function_builder = FunctionBuilder::new(&mut self.module.types, &vec![], &[]);
         let mut builder: InstrSeqBuilder = function_builder.func_body();
-        self.import_images(&mut builder, &image_names, &mut symbol_table);
+        self.import_images(&mut builder, &image_names);
 
         let mut memory = Memory::new(&mut self.module);
-
         let function_compile_result = function.compile(
             &mut self.module,
             &mut builder,
-            &mut symbol_table,
+            &mut self.symbol_table,
             &mut memory,
         );
         if function_compile_result.is_ok() {
@@ -169,6 +169,7 @@ impl Compiler {
             self.module
                 .exports
                 .add(&function.prototype.identifier, function_id);
+            self.module.exports.add("mem", memory.id);
 
             self.module.emit_wasm()
         } else {
@@ -176,8 +177,12 @@ impl Compiler {
         }
     }
 
-    pub fn run(&mut self, src: String, image_names: Vec<String>) -> Vec<u8> {
-        self.compile(src, image_names)
+    pub fn export(&mut self, src: String, image_names: Vec<String>) -> Vec<JsValue> {
+        vec![
+            JsValue::from_serde(&self.compile(src, image_names)).unwrap(),
+            self.symbol_table.library_tracker.export_images(),
+            self.symbol_table.library_tracker.export_materials(),
+        ]
     }
 }
 
@@ -214,9 +219,9 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
 }
 
 #[wasm_bindgen]
-pub fn code_to_wasm(src: String, image_names: &JsValue) -> Vec<u8> {
+pub fn code_to_wasm(src: String, image_names: &JsValue) -> Vec<JsValue> {
     let mut compiler = Compiler::new();
-    compiler.run(src, parse_image_names(image_names))
+    compiler.export(src, parse_image_names(image_names))
 }
 
 #[cfg(test)]

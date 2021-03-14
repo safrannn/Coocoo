@@ -21,14 +21,17 @@ impl SymbolTable {
     }
 
     pub fn insert(&mut self, ident: String, attr: Attribute) {
-        match attr {
+        match &attr {
             Attribute::Image(_, image) => {
                 self.library_tracker
                     .add_image(Some(ident.clone()), image.clone());
             }
             Attribute::Material(_, offset, material_type) => {
-                self.library_tracker
-                    .add_material(ident.clone(), offset, material_type);
+                self.library_tracker.add_material(
+                    ident.clone(),
+                    offset.clone(),
+                    material_type.clone(),
+                );
             }
             _ => {}
         }
@@ -71,7 +74,7 @@ impl SymbolTable {
 pub enum Attribute {
     Number(Id<walrus::Local>),
     Image(Id<walrus::Local>, Option<Image>), // local_id, image info
-    Material(walrus::MemoryId, u32, &'static str), // memoryid, offset, material type
+    Material(walrus::MemoryId, u32, String), // memoryid, offset, material type
     Func(
         id_arena::Id<walrus::Function>,
         Vec<walrus::ValType>,
@@ -104,8 +107,8 @@ pub struct LibraryTracker {
     images: HashMap<String, Image>,
     pub next_image_id: i32,
     image_exports: HashMap<String, i32>, // ident, image_id
-    material_info: MaterialInfo,
-    materials: HashMap<String, (u32, &'static str)>, // ident, (starting offset, type)
+    pub material_info: MaterialInfo,
+    materials: HashMap<String, (u32, String)>, // ident, (starting offset, type)
 }
 
 impl LibraryTracker {
@@ -154,17 +157,22 @@ impl LibraryTracker {
         JsValue::from_serde(&self.image_exports).unwrap()
     }
 
-    pub fn add_material(&mut self, ident: String, offset: u32, material_type: &'static str) {
+    pub fn add_material(&mut self, ident: String, offset: u32, material_type: String) {
         self.materials.insert(ident, (offset, material_type));
     }
 
     pub fn export_materials(&mut self) -> JsValue {
-        let mut result: HashMap<i32, Vec<&str>> = HashMap::new();
+        let mut result: HashMap<i32, Vec<String>> = HashMap::new();
+        log(&format!(
+            "rust: export_materials: materials: {:?}",
+            self.materials
+        ));
+        let align = 2;
         for (ident, (start, material_type)) in &self.materials {
-            if let Ok(channels) = self.material_info.get_material_channels(*material_type) {
-                let mut position = *start as i32 + 2;
+            if let Ok(channels) = self.material_info.get_material_channels(material_type) {
+                let mut position = (*start as i32) / u32::pow(2, align) as i32 + 2;
                 for channel in channels {
-                    result.insert(position, vec![ident, channel]);
+                    result.insert(position, vec![ident.clone(), channel]);
                     position += 1;
                 }
             } else {
@@ -177,37 +185,33 @@ impl LibraryTracker {
 
 #[derive(Debug, Clone)]
 pub struct MaterialInfo {
-    channel_info: HashMap<String, Vec<&'static str>>,
+    channel_info: HashMap<String, Vec<String>>,
 }
 
 impl MaterialInfo {
     fn new() -> Self {
-        let mut channel_info: HashMap<String, Vec<&'static str>> = HashMap::new();
+        let mut channel_info: HashMap<String, Vec<String>> = HashMap::new();
         channel_info.insert(
             "PBRMetalness".to_string(),
             vec![
-                "diffuse",
-                "metalness",
-                "normal",
-                "transparency",
-                "roughness",
-                "ambient_occlusion",
-                "displacement",
-                "emission",
-                "cavity",
-                "subsurfance_scattering",
+                "diffuse".to_string(),
+                "metalness".to_string(),
+                "normal".to_string(),
+                "transparency".to_string(),
+                "roughness".to_string(),
+                "ambient_occlusion".to_string(),
+                "displacement".to_string(),
+                "emission".to_string(),
+                "cavity".to_string(),
+                "subsurfance_scattering".to_string(),
             ],
         );
         return MaterialInfo { channel_info };
     }
 
-    pub fn find_channel_index(
-        &self,
-        material_type: &'static str,
-        channel: &'static str,
-    ) -> Result<u32, ()> {
+    pub fn find_channel_index(&self, material_type: &String, channel: &String) -> Result<u32, ()> {
         if let Some(channels) = self.channel_info.get(material_type) {
-            for (i, &v) in channels.iter().enumerate() {
+            for (i, v) in channels.iter().enumerate() {
                 if v == channel {
                     return Ok(i as u32);
                 }
@@ -216,7 +220,7 @@ impl MaterialInfo {
         return Err(());
     }
 
-    pub fn get_material_channels(&self, material: &'static str) -> Result<Vec<&'static str>, ()> {
+    pub fn get_material_channels(&self, material: &String) -> Result<Vec<String>, ()> {
         if let Some(channels) = self.channel_info.get(material) {
             return Ok(channels.to_vec());
         } else {

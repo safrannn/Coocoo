@@ -12,6 +12,8 @@ use wasm_bindgen::JsValue;
 
 log_rule!();
 
+const ALIGN: u32 = 2;
+
 #[derive(Clone)]
 pub enum MemoryValue {
     walrus_id(Id<walrus::Local>),
@@ -43,11 +45,10 @@ impl Memory {
             self.last_offset.clone()
         };
         let start_offset = offset;
-        let align = 2;
         let n = value.len();
         for i in 0..n {
             builder.i32_const(offset as i32);
-            offset += u32::pow(2, align);
+            offset += u32::pow(2, ALIGN);
 
             match value[i] {
                 MemoryValue::walrus_id(id) => {
@@ -61,7 +62,10 @@ impl Memory {
             builder.store(
                 self.id,
                 walrus::ir::StoreKind::I32 { atomic: false },
-                walrus::ir::MemArg { align, offset: 0 },
+                walrus::ir::MemArg {
+                    align: ALIGN,
+                    offset: 0,
+                },
             );
         }
         self.last_offset = self.last_offset.max(offset);
@@ -75,7 +79,6 @@ impl Memory {
         offset_2: u32,
         length: u32,
     ) {
-        let align = 2;
         let mut offset_1 = offset_1;
         let mut offset_2 = offset_2;
         for _ in 0..length as usize {
@@ -84,16 +87,22 @@ impl Memory {
             builder.load(
                 self.id,
                 walrus::ir::LoadKind::I32 { atomic: false },
-                walrus::ir::MemArg { align, offset: 0 },
+                walrus::ir::MemArg {
+                    align: ALIGN,
+                    offset: 0,
+                },
             );
 
             builder.store(
                 self.id,
                 walrus::ir::StoreKind::I32 { atomic: false },
-                walrus::ir::MemArg { align, offset: 0 },
+                walrus::ir::MemArg {
+                    align: ALIGN,
+                    offset: 0,
+                },
             );
-            offset_1 += u32::pow(2, align);
-            offset_2 += u32::pow(2, align);
+            offset_1 += u32::pow(2, ALIGN);
+            offset_2 += u32::pow(2, ALIGN);
         }
     }
 }

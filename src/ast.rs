@@ -8,6 +8,8 @@ use walrus::*;
 
 log_rule!();
 
+const ALIGN: u32 = 2;
+
 pub trait Compile {
     fn compile(
         &self,
@@ -228,7 +230,7 @@ impl Compile for Expr {
 #[derive(Clone)]
 pub enum Statement {
     Declare(String, String, Option<Box<Expr>>),
-    Assignment(String, Box<Expr>),
+    Assignment(Vec<String>, Box<Expr>),
     Block(Vec<Statement>),
     Call(String, Vec<Box<Expr>>),
 }
@@ -376,7 +378,7 @@ impl Compile for Statement {
                                                 Attribute::Image(local_id.clone(), None),
                                             );
                                             let assignment_statement = Statement::Assignment(
-                                                identifier.clone(),
+                                                vec![identifier.clone()],
                                                 Box::new(expr.clone()),
                                             );
                                             let assignment_compile_result = assignment_statement
@@ -415,12 +417,12 @@ impl Compile for Statement {
                             memories.store(builder, None, vec![MemoryValue::i32(i32::MAX); 32]);
                         symbol_table.insert(
                             identifier.clone(),
-                            Attribute::Material(mem_id, offset, "PBRMetalness"),
+                            Attribute::Material(mem_id, offset, "PBRMetalness".to_string()),
                         );
 
                         if let Some(expression) = expr {
                             let assignment_statement = Statement::Assignment(
-                                identifier.clone(),
+                                vec![identifier.clone()],
                                 Box::new(*expression.clone()),
                             );
                             let assignment_compile_result = assignment_statement.compile(
@@ -444,54 +446,105 @@ impl Compile for Statement {
                     }
                 }
             }
-            Assignment(ref identifier, ref expr) => {
-                let expr = &**expr;
-                if symbol_table.lookup(identifier).is_none() {
-                    log(&format!(
+            Assignment(ref identifiers, ref expr) => {
+                if identifiers.len() == 2 {
+                    if let Some(Attribute::Material(_, material_offset, material_type)) =
+                        symbol_table.lookup(&identifiers[0])
+                    {
+                        let channel_name = &identifiers[1];
+                        if let Ok(channel_index) = symbol_table
+                            .library_tracker
+                            .material_info
+                            .find_channel_index(material_type, channel_name)
+                        {
+                            let expr = &**expr;
+                            match expr {
+                                Expr::Variable(right_ident) => {
+                                    if symbol_table.lookup(&right_ident).is_none() {
+                                        log(&format!("Error: {:?} does not exist.", right_ident));
+                                        return Err("Error");
+                                    }
+                                    match symbol_table.lookup(&right_ident).unwrap().clone() {
+                                        Attribute::Image(right_local_id, _) => {
+                                            memories.store(
+                                                builder,
+                                                Some(
+                                                    material_offset
+                                                        + 2 * u32::pow(2, ALIGN)
+                                                        + 4 * channel_index,
+                                                ),
+                                                vec![MemoryValue::walrus_id(right_local_id)],
+                                            );
+                                        }
+                                        _ => {
+                                            log(&format!(
+                                                "Error: {:?} is not an image.",
+                                                right_ident
+                                            ));
+                                            return Err("Error");
+                                        }
+                                    }
+                                }
+                                Expr::Call(_, _) => {
+                                    //
+                                    //********
+                                    //
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            log(&format!("Error: Can't find channel {:?} of material type {:?} for variable {:?}",channel_name, material_type, identifiers[0]));
+                        }
+                    } else {
+                        log(&format!("Error: Please use a material."));
+                    }
+                } else if identifiers.len() == 1 {
+                    let identifier = &identifiers[0];
+                    let expr = &**expr;
+                    if symbol_table.lookup(identifier).is_none() {
+                        log(&format!(
                         "Error: {:?} doesn't exist. Please decalre or define it. Example: var image0:Image; or var image1:Image = file_001;",
                         identifier
                     ));
-                    return Err("Error");
-                }
+                        return Err("Error");
+                    }
 
-                match symbol_table.lookup(identifier).unwrap().clone() {
-                    Attribute::Number(left_local_id) => match expr {
-                        Expr::Variable(right_ident) => {
-                            if symbol_table.lookup(&right_ident).is_none() {
-                                log(&format!("Error: {:?} does not exist.", right_ident));
-                                return Err("Error");
-                            }
-                            match symbol_table.lookup(&right_ident) {
-                                Some(Attribute::Number(right_local_id)) => {
-                                    builder.local_get(*right_local_id);
-                                    builder.local_set(left_local_id);
-                                }
-                                _ => {
-                                    log(&format!("Error: {:?} is not a number.", expr));
+                    match symbol_table.lookup(identifier).unwrap().clone() {
+                        Attribute::Number(left_local_id) => match expr {
+                            Expr::Variable(right_ident) => {
+                                if symbol_table.lookup(&right_ident).is_none() {
+                                    log(&format!("Error: {:?} does not exist.", right_ident));
                                     return Err("Error");
                                 }
+                                match symbol_table.lookup(&right_ident) {
+                                    Some(Attribute::Number(right_local_id)) => {
+                                        builder.local_get(*right_local_id);
+                                        builder.local_set(left_local_id);
+                                    }
+                                    _ => {
+                                        log(&format!("Error: {:?} is not a number.", expr));
+                                        return Err("Error");
+                                    }
+                                }
                             }
-                        }
-                        Expr::Number(_) | Expr::Op(_, _, _) => {
-                            let expr_compile_result =
-                                expr.compile(module, builder, symbol_table, memories);
-                            if expr_compile_result.is_ok() {
-                                builder.local_set(left_local_id);
-                            } else {
-                                return expr_compile_result;
-                            };
-                        }
-                        _ => {
-                            log(&format!(
-                                "Error: value of {:?} should be as a number",
-                                identifier,
-                            ));
-                            return Err("Error");
-                        }
-                    },
-                    Attribute::Image(left_local_id, _) => {
-                        log(&format!(""));
-                        match expr {
+                            Expr::Number(_) | Expr::Op(_, _, _) => {
+                                let expr_compile_result =
+                                    expr.compile(module, builder, symbol_table, memories);
+                                if expr_compile_result.is_ok() {
+                                    builder.local_set(left_local_id);
+                                } else {
+                                    return expr_compile_result;
+                                };
+                            }
+                            _ => {
+                                log(&format!(
+                                    "Error: value of {:?} should be as a number",
+                                    identifier,
+                                ));
+                                return Err("Error");
+                            }
+                        },
+                        Attribute::Image(left_local_id, _) => match expr {
                             Expr::Variable(right_ident) => {
                                 if symbol_table.lookup(&right_ident).is_none() {
                                     log(&format!("Error: {:?} does not exist.", right_ident));
@@ -559,76 +612,84 @@ impl Compile for Statement {
                                 ));
                                 return Err("Error");
                             }
-                        }
-                    }
-                    Attribute::Material(_, left_offset, _) => match expr {
-                        Expr::Variable(right_ident) => {
-                            if let Some(Attribute::Material(_, right_offset, _)) =
-                                symbol_table.lookup(right_ident)
-                            {
-                                memories.copy(
-                                    builder,
-                                    left_offset.clone(),
-                                    right_offset.clone(),
-                                    32,
-                                );
-                            } else {
-                                log(&format!(
-                                    "Error: Please define {:?} with a material variable;",
-                                    identifier
-                                ));
-                                return Err("Error");
+                        },
+                        Attribute::Material(_, left_offset, _) => match expr {
+                            Expr::Variable(right_ident) => {
+                                if let Some(Attribute::Material(_, right_offset, _)) =
+                                    symbol_table.lookup(right_ident)
+                                {
+                                    memories.copy(
+                                        builder,
+                                        left_offset.clone(),
+                                        right_offset.clone(),
+                                        32,
+                                    );
+                                } else {
+                                    log(&format!(
+                                        "Error: Please define {:?} with a material variable;",
+                                        identifier
+                                    ));
+                                    return Err("Error");
+                                }
                             }
-                        }
-                        Expr::Call(right_func_ident, right_func_params) => {
-                            if *right_func_ident != "new_material".to_string() {
-                                log(&format!(
+                            Expr::Call(right_func_ident, right_func_params) => {
+                                if *right_func_ident != "new_material".to_string() {
+                                    log(&format!(
                                     "Error: Please call new_material(width,height) to define {:?};",
                                     identifier
                                 ));
-                                return Err("Error");
-                            }
-                            if right_func_params.len() != 2 {
-                                log(&format!(
+                                    return Err("Error");
+                                }
+                                if right_func_params.len() != 2 {
+                                    log(&format!(
                                     "Error: Please call new_material(width,height) to define {:?};",
                                     identifier
                                 ));
-                                return Err("Error");
-                            }
+                                    return Err("Error");
+                                }
 
-                            let width = &*right_func_params[0];
-                            let height = &*right_func_params[1];
+                                let width = &*right_func_params[0];
+                                let height = &*right_func_params[1];
 
-                            if let Expr::Number(width_i32) = width {
-                                memories.store(
-                                    builder,
-                                    Some(left_offset),
-                                    vec![MemoryValue::i32(*width_i32)],
-                                );
-                            } else {
-                                log(&format!("Error: Please use a number for material's width",));
-                                return Err("Error");
+                                if let Expr::Number(width_i32) = width {
+                                    memories.store(
+                                        builder,
+                                        Some(left_offset),
+                                        vec![MemoryValue::i32(*width_i32)],
+                                    );
+                                } else {
+                                    log(&format!(
+                                        "Error: Please use a number for material's width",
+                                    ));
+                                    return Err("Error");
+                                }
+                                if let Expr::Number(height_i32) = height {
+                                    memories.store(
+                                        builder,
+                                        Some(left_offset + 4),
+                                        vec![MemoryValue::i32(*height_i32)],
+                                    );
+                                } else {
+                                    log(&format!(
+                                        "Error: Please use a number for material's height",
+                                    ));
+                                    return Err("Error");
+                                }
                             }
-                            if let Expr::Number(height_i32) = height {
-                                memories.store(
-                                    builder,
-                                    Some(left_offset + 4),
-                                    vec![MemoryValue::i32(*height_i32)],
-                                );
-                            } else {
-                                log(&format!("Error: Please use a number for material's height",));
-                                return Err("Error");
-                            }
-                        }
-                        _ => {
-                            log(&format!(
+                            _ => {
+                                log(&format!(
                                 "Error: Please define the material {:?} with another material variable, or call new_material(width,height) function",
                                 identifier
                             ));
-                            return Err("Error");
-                        }
-                    },
-                    _ => {}
+                                return Err("Error");
+                            }
+                        },
+                        _ => {}
+                    }
+                } else {
+                    log(&format!(
+                        "Error: Please have a variable on the left side = to assign the value to."
+                    ));
                 }
             }
             Block(_) => {

@@ -147,6 +147,10 @@ impl LibraryTracker {
         self.images.get(name)
     }
 
+    pub fn get_next_image_id(&self) -> i32 {
+        return self.next_image_id;
+    }
+
     pub fn add_export_image(&mut self, image_name: String) {
         if let Some(image) = self.images.get(&image_name) {
             self.image_exports.insert(image_name.clone(), image.id);
@@ -163,10 +167,6 @@ impl LibraryTracker {
 
     pub fn export_materials(&mut self) -> JsValue {
         let mut result: HashMap<i32, Vec<String>> = HashMap::new();
-        log(&format!(
-            "rust: export_materials: materials: {:?}",
-            self.materials
-        ));
         let align = 2;
         for (ident, (start, material_type)) in &self.materials {
             if let Ok(channels) = self.material_info.get_material_channels(material_type) {

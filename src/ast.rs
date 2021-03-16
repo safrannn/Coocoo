@@ -448,55 +448,96 @@ impl Compile for Statement {
             }
             Assignment(ref identifiers, ref expr) => {
                 if identifiers.len() == 2 {
-                    if let Some(Attribute::Material(_, material_offset, material_type)) =
-                        symbol_table.lookup(&identifiers[0])
-                    {
-                        let channel_name = &identifiers[1];
-                        if let Ok(channel_index) = symbol_table
-                            .library_tracker
-                            .material_info
-                            .find_channel_index(material_type, channel_name)
-                        {
-                            let expr = &**expr;
-                            match expr {
-                                Expr::Variable(right_ident) => {
-                                    if symbol_table.lookup(&right_ident).is_none() {
-                                        log(&format!("Error: {:?} does not exist.", right_ident));
-                                        return Err("Error");
-                                    }
-                                    match symbol_table.lookup(&right_ident).unwrap().clone() {
-                                        Attribute::Image(right_local_id, _) => {
-                                            memories.store(
-                                                builder,
-                                                Some(
-                                                    material_offset
-                                                        + 2 * u32::pow(2, ALIGN)
-                                                        + 4 * channel_index,
-                                                ),
-                                                vec![MemoryValue::walrus_id(right_local_id)],
-                                            );
-                                        }
-                                        _ => {
+                    if symbol_table.lookup(&identifiers[0]).is_none() {
+                        return Err("Error");
+                    }
+                    match symbol_table.lookup(&identifiers[0]).unwrap().clone() {
+                        Attribute::Material(_, material_offset, material_type) => {
+                            let channel_name = &identifiers[1];
+                            if let Ok(channel_index) = symbol_table
+                                .library_tracker
+                                .material_info
+                                .find_channel_index(&material_type, channel_name)
+                            {
+                                let expr = &**expr;
+                                match expr {
+                                    Expr::Variable(right_ident) => {
+                                        if symbol_table.lookup(&right_ident).is_none() {
                                             log(&format!(
-                                                "Error: {:?} is not an image.",
+                                                "Error: {:?} does not exist.",
                                                 right_ident
                                             ));
                                             return Err("Error");
                                         }
+                                        match symbol_table.lookup(&right_ident).unwrap().clone() {
+                                            Attribute::Image(right_local_id, _) => {
+                                                memories.store(
+                                                    builder,
+                                                    Some(
+                                                        material_offset
+                                                            + 2 * u32::pow(2, ALIGN)
+                                                            + 4 * channel_index,
+                                                    ),
+                                                    vec![MemoryValue::walrus_id(right_local_id)],
+                                                );
+                                            }
+                                            _ => {
+                                                log(&format!(
+                                                    "Error: {:?} is not an image.",
+                                                    right_ident
+                                                ));
+                                                return Err("Error");
+                                            }
+                                        }
                                     }
+                                    Expr::Call(func_ident, _) => {
+                                        match symbol_table.lookup(func_ident).unwrap().clone() {
+                                            Attribute::Func(_, _, returns) => {
+                                                if returns == vec![walrus::ValType::I32] {
+                                                    let offset = material_offset
+                                                        + 2 * u32::pow(2, ALIGN)
+                                                        + u32::pow(2, ALIGN) * channel_index;
+                                                    builder.i32_const(offset as i32);
+                                                    let call_compile_result = expr.compile(
+                                                        module,
+                                                        builder,
+                                                        symbol_table,
+                                                        memories,
+                                                    );
+                                                    if call_compile_result.is_err() {
+                                                        return call_compile_result;
+                                                    }
+                                                    builder.store(
+                                                        memories.id,
+                                                        walrus::ir::StoreKind::I32 {
+                                                            atomic: false,
+                                                        },
+                                                        walrus::ir::MemArg {
+                                                            align: ALIGN,
+                                                            offset: 0,
+                                                        },
+                                                    );
+                                                } else {
+                                                    return Ok(());
+                                                }
+                                            }
+                                            _ => {
+                                                log(&format!(
+                                            "Error: {:?} doesn't exist. Please use another function",
+                                            func_ident
+                                        ));
+                                            }
+                                        }
+                                    }
+                                    _ => {}
                                 }
-                                Expr::Call(_, _) => {
-                                    //
-                                    //********
-                                    //
-                                }
-                                _ => {}
+                            } else {
+                                log(&format!("Error: Can't find channel {:?} of material type {:?} for variable {:?}",channel_name, material_type, identifiers[0]));
                             }
-                        } else {
-                            log(&format!("Error: Can't find channel {:?} of material type {:?} for variable {:?}",channel_name, material_type, identifiers[0]));
                         }
-                    } else {
-                        log(&format!("Error: Please use a material."));
+                        _ => {
+                            log(&format!("Error: Please use a material."));
+                        }
                     }
                 } else if identifiers.len() == 1 {
                     let identifier = &identifiers[0];

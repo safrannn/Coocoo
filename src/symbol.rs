@@ -206,6 +206,33 @@ impl MaterialInfo {
                 "subsurfance_scattering".to_string(),
             ],
         );
+        channel_info.insert(
+            "PBRSpecular".to_string(),
+            vec![
+                "albedo".to_string(),
+                "specular".to_string(),
+                "normal".to_string(),
+                "transparency".to_string(),
+                "roughness".to_string(),
+                "ambient_occlusion".to_string(),
+                "displacement".to_string(),
+                "emission".to_string(),
+                "cavity".to_string(),
+                "subsurfance_scattering".to_string(),
+            ], 
+        );
+        channel_info.insert(
+            "UnityStandardSpecular".to_string(),
+            vec![
+                "albedo".to_string(),
+                "specular".to_string(),
+                "normal".to_string(),
+                "height".to_string(),
+                "ambient_occlusion".to_string(),
+                "emission".to_string(),
+                "detailed_mask".to_string(),
+            ],
+        );
         return MaterialInfo { channel_info };
     }
 

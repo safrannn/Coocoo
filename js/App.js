@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { toJS } from 'mobx'
 import { createMuiTheme, makeStyles } from "@material-ui/core/styles";
 import {
     AppBar, Box, Button, ButtonGroup, Divider, Grid, GridList, GridListTile,
@@ -30,13 +31,17 @@ import { KeyboardReturn } from '@material-ui/icons';
 
 const regeneratorRuntime = require("regenerator-runtime");
 
-
 class ObservableStateStore {
-    imageInputFiles = new Map([]);
-    imageOutputFiles = new Map([]);
+    imageInputFiles = new Map();
+    imageOutputFiles = new Map();
     code = "";
     consoleMessage = "";
     consoleWasm = "";
+
+    leftSiderTabValue = 0;
+    codeConsoleTabValue = 0;
+    imageOutputTabValue = 0;
+    imageOutputFileListTabValue = 0;
 
     constructor() {
         makeObservable(this, {
@@ -50,6 +55,7 @@ class ObservableStateStore {
             deleteInputImage: action,
             addOutputImage: action,
             renameOutputImage: action,
+            getOutputCategoryInfo: action,
             clearOutputImage: action,
             changeCode: action,
             clearCode: action,
@@ -57,6 +63,10 @@ class ObservableStateStore {
             addConsoleMessage: action,
             clearConsoleMessage: action,
             printConsoleWasm: action,
+            leftSiderTabValue: observable,
+            codeConsoleTabValue: observable,
+            imageOutputTabValue: observable,
+            imageOutputFileListTabValue: observable,
         });
     }
 
@@ -82,7 +92,7 @@ class ObservableStateStore {
         if (!this.imageOutputFiles.get(category)) {
             this.imageOutputFiles.set(category, {});
         }
-        this.imageOutputFiles.get(category).image_name = image_data;
+        this.imageOutputFiles.get(category)[image_name] = image_data;
     }
 
     renameOutputImage(category, oldName, newName) {
@@ -94,6 +104,10 @@ class ObservableStateStore {
             this.imageOutputFiles.get(category).newName = image_data;
             return true
         }
+    }
+
+    getOutputCategoryInfo(category) {
+        return observableStateStore.imageOutputFiles.get(category)
     }
 
     clearOutputImage() {
@@ -124,9 +138,7 @@ class ObservableStateStore {
 
 const observableStateStore = new ObservableStateStore();
 
-
 window.S = observableStateStore;
-
 
 const theme = createMuiTheme({
     palette: {
@@ -184,7 +196,6 @@ const useStyles = makeStyles((theme) => ({
     },
     codeBlock: {
         // height: "calc(100vh - 45px)",
-        // borderRight: `1px solid ${theme.palette.divider}`,
     },
     codeBar: {
         width: '100%',
@@ -196,7 +207,6 @@ const useStyles = makeStyles((theme) => ({
         height: "calc(3*(100vh - 45px - 48px - 48px)/5 - 1)",
     },
     codeConsole: {
-        // width: 'fit-content',
         width: "100%",
         flexGrow: 1,
         display: "flex",
@@ -214,15 +224,10 @@ const useStyles = makeStyles((theme) => ({
     inputIcon: {
         display: 'none',
     },
-    imageBlockSplit: {
-        // maxHeight: "calc((100vh - 45px)/2)",
-    },
     imageInputTab: {
         display: 'flex',
         flexWrap: 'wrap',
         overflow: 'scroll',
-        // height: 'calc((100vh - 45px)/2 - 48px)',
-        padding: theme.spacing(.5),
     },
     gridList: {
         flexWrap: 'nowrap',
@@ -234,16 +239,26 @@ const useStyles = makeStyles((theme) => ({
         color: "white",
     },
     imageOutputFileList: {
-        // flexGrow: 1,
-        backgroundColor: theme.palette.background.paper,
-        // display: 'flex',
-        width: "100px",
+        flexGrow: 1,
+        display: 'flex',
         height: 'calc((100vh - 45px- 48px)/2)',
+        width: '100%'
     },
-    imageOutputFileListTab: {
+    imageOutputFileListTabs: {
         borderRight: `1px solid ${theme.palette.divider}`,
     },
+    imageOutputFileListPanel: {
+        // width: 'calc(5*(100vw-48px)/24)',
+        width: '75%',
+        maxWidth: '75%',
+    },
 }));
+
+// var console_log = console.log;
+// console.log = function (message) {
+//     observableStateStore.addConsoleMessage(message);
+//     console_log.apply(console, arguments);
+// };
 
 export default function App() {
     const classes = useStyles();
@@ -319,30 +334,29 @@ function a11yProps(prefix, index) {
     };
 }
 
-function LeftSider() {
+const LeftSider = observer(() => {
     const classes = useStyles();
-    const [value, setValue] = React.useState(0);
 
     const handleChange = (event, newValue) => {
-        setValue(newValue);
+        observableStateStore.leftSiderTabValue = newValue;
     };
 
     return (
         <div className={classes.leftSider}>
             <Tabs
                 orientation="vertical"
-                value={value}
+                value={observableStateStore.leftSiderTabValue}
                 onChange={handleChange}
                 className={classes.leftSiderTabs}
             >
                 <Tab icon={<MenuBookIcon />} {...a11yProps("leftSider-tabs", 0)} className={classes.leftSiderTab} />
             </Tabs>
-            <TabPanel value={value} index={0} prefix="leftSider-tabs">
+            <TabPanel value={observableStateStore.leftSiderTabValue} index={0} prefix="leftSider-tabs">
                 <LeftSiderDocument></LeftSiderDocument>
             </TabPanel>
         </div>
     );
-}
+})
 
 function LeftSiderDocument() {
     const classes = useStyles();
@@ -470,29 +484,28 @@ const CodeText = observer(() => {
     );
 })
 
-function CodeConsole() {
+const CodeConsole = observer(() => {
     const classes = useStyles();
-    const [value, setValue] = React.useState(0);
-
     const handleChange = (event, newValue) => {
-        setValue(newValue);
+        observableStateStore.codeConsoleTabValue = newValue;
     };
+
     return (
         <Grid>
-            <Tabs value={value} onChange={handleChange} aria-label="code_console">
+            <Tabs value={observableStateStore.codeConsoleTabValue} onChange={handleChange} aria-label="code_console">
                 <Tab icon={<NotesIcon />} {...a11yProps("codeConsole-tabs", 0)} />
                 <Tab icon={<BugReportIcon />} {...a11yProps("codeConsole-tabs", 1)} />
             </Tabs>
             <Divider />
-            <TabPanel value={value} index={0} prefix="codeConsole-tabs">
+            <TabPanel value={observableStateStore.codeConsoleTabValue} index={0} prefix="codeConsole-tabs">
                 <CodeConsoleMessage />
             </TabPanel>
-            <TabPanel value={value} index={1} prefix="codeConsole-tabs">
+            <TabPanel value={observableStateStore.codeConsoleTabValue} index={1} prefix="codeConsole-tabs">
                 <CodeConsoleWasm />
             </TabPanel>
         </Grid >
     );
-}
+})
 
 const CodeConsoleMessage = observer(() => {
     const classes = useStyles();
@@ -511,12 +524,6 @@ const CodeConsoleMessage = observer(() => {
         </form>
     );
 })
-
-var console_log = console.log;
-console.log = function (message) {
-    observableStateStore.addConsoleMessage(message);
-    console_log.apply(console, arguments);
-};
 
 const CodeConsoleWasm = observer(() => {
     const classes = useStyles();
@@ -537,44 +544,37 @@ const CodeConsoleWasm = observer(() => {
 })
 
 
-function ImageBlock() {
+const ImageBlock = observer(() => {
     const classes = useStyles();
-    const [value, setValue] = React.useState(0);
-
     const handleChange = (event, newValue) => {
-        setValue(newValue);
+        observableStateStore.imageOutputTabValue = newValue
     };
+
     return (
-        // <div className={classes.imageBlock}>
-        //     <ImageUpload />
-        //     <ImageInputTab />
-        // </div>
         <Grid container className={classes.imageBlock}>
-            <Grid item md container justify="flex-start">
-                <Grid container direction="column">
-                    <Tabs variant="fullWidth" value={value} onChange={handleChange} aria-label="image block">
-                        <Tab label="Input" {...a11yProps("imageBlock-tabs", 0)} className={classes.codeConsoleTab} />
-                        <Tab label="Output" {...a11yProps("imageBlock-tabs", 1)} className={classes.codeConsoleTab} />
-                    </Tabs>
-                    <Divider />
-                    <TabPanel value={value} index={0} prefix="imageBlock-tabs">
-                        <Grid container>
-                            <Grid item align="center" xs={12}>
-                                <ImageUpload />
-                            </Grid>
-                            <Grid item xs={12}>
-                                <ImageInputTab />
-                            </Grid>
+            <Grid container direction="column">
+                <Tabs variant="fullWidth" value={observableStateStore.imageOutputTabValue} onChange={handleChange} aria-label="image block">
+                    <Tab label="Input" {...a11yProps("imageBlock-tabs", 0)} />
+                    <Tab label="Output" {...a11yProps("imageBlock-tabs", 1)} />
+                </Tabs>
+                <Divider />
+                <TabPanel value={observableStateStore.imageOutputTabValue} index={0} prefix="imageBlock-tabs">
+                    <Grid container>
+                        <Grid item align="center" xs={12}>
+                            <ImageUpload />
                         </Grid>
-                    </TabPanel>
-                    <TabPanel value={value} index={1} prefix="imageBlock-tabs">
-                        <ImageOutputTab />
-                    </TabPanel>
-                </Grid >
+                        <Grid item xs={12}>
+                            <ImageInputTab />
+                        </Grid>
+                    </Grid>
+                </TabPanel>
+                <TabPanel value={observableStateStore.imageOutputTabValue} index={1} prefix="imageBlock-tabs">
+                    <ImageOutputFileList />
+                </TabPanel>
             </Grid>
         </Grid >
     );
-}
+})
 
 function Alert(props) {
     return <MuiAlert elevation={6} variant="filled" {...props} />;
@@ -685,19 +685,17 @@ const ImageInputTab = observer(() => {
 
 const ImageOutputTab = observer(() => {
     return (
-        <div>
-            <ImageOutputFileList />
-            {/* <ImageOutputRender /> */}
-        </div>
+        // <div>
+        <ImageOutputFileList />
+        // <ImageOutputRender /> 
+        // </div>
     );
 })
 
 const ImageOutputFileList = observer(() => {
     const classes = useStyles();
-    const [value, setValue] = React.useState(0);
-
     const handleChange = (event, newValue) => {
-        setValue(newValue);
+        observableStateStore.imageOutputFileListTabValue = newValue
     };
 
     const tab = [];
@@ -706,33 +704,32 @@ const ImageOutputFileList = observer(() => {
     let i = 0;
     for (var [category, info] of observableStateStore.imageOutputFiles) {
         tab.push(
-            <Tab label={value} {...a11yProps("imageOutputFileList-tabs", 0)} />
+            <Tab key={i} label={category} {...a11yProps("imageOutputFileList-tabs", i)} />
         )
         tabPanel.push(
-            <TabPanel value={value} index={i} prefix="imageOutputFileList-tabs" >
+            <TabPanel value={observableStateStore.imageOutputFileListTabValue}
+                key={i}
+                index={i}
+                prefix="imageOutputFileList-tabs"
+                className={classes.imageOutputFileListPanel}
+            >
                 <ImageOutputImageFileDisplay category={category} />
             </TabPanel>
         )
         i += 1;
     }
-    // console.log(tab)
-    // console.log(tabPanel)
 
     return (
-        <div className={classes.imageOutputFileList}>
+        <div className={classes.imageOutputFileList} >
             <Tabs
                 orientation="vertical"
-                variant="scrollable"
-                value={value}
+                scrollButtons="auto"
+                value={observableStateStore.imageOutputFileListTabValue}
                 onChange={handleChange}
-                className={classes.imageOutputFileListTab}
+                className={classes.imageOutputFileListTabs}
             >
-                {/* <Tab label="Item One" {...a11yProps(0)} /> */}
                 {tab}
             </Tabs>
-            {/* <TabPanel value={value} index={0}>
-                Item One
-             </TabPanel> */}
             {tabPanel}
         </div>
     );
@@ -741,12 +738,14 @@ const ImageOutputFileList = observer(() => {
 const ImageOutputImageFileDisplay = observer(({ category }) => {
     const classes = useStyles();
 
-    let files = observableStateStore.imageOutputFiles.get(category);
+    let files = observableStateStore.getOutputCategoryInfo(category);
     if (files == undefined) {
         console.log(category, " doesn't exist.")
         return
     }
 
+    console.log("category", category);
+    console.log("files", toJS(files));
     const items = [];
     for (const [tileName, tile] of Object.entries(files)) {
         let name = tileName;
@@ -777,7 +776,7 @@ const ImageOutputImageFileDisplay = observer(({ category }) => {
         )
     }
     return (
-        <GridList cellHeight={150} className={classes.imageInputTab} cols={8}>
+        <GridList cellHeight={150} cols={6}>
             {items}
         </GridList>
     );
@@ -802,6 +801,7 @@ async function main() {
     document.getElementById('run').onclick = async function () {
         compiler.library_reset();
         observableStateStore.clearConsoleMessage();
+        observableStateStore.clearOutputImage();
 
         let image_names = processImageInput();
         let output = compiler.code_to_wasm(observableStateStore.code, image_names);
@@ -810,8 +810,6 @@ async function main() {
         let output_material_info = output[2]; // position in mem, [material_name, channel_name]
         // console.log(output)
         // console.log("output_material_info", output_material_info)
-
-
 
         let has_error = observableStateStore.consoleMessage.length == 0 ? false : true
         if (!has_error) {
@@ -874,16 +872,15 @@ async function main() {
 
         // materials 
         for (let [offset, names] of Object.entries(output_material_info)) {
-            export_info = {}
             if (wasm_memory[offset] < 2147483647) {
+                export_info = {}
                 export_info[names[0] + "_" + names[1]] = wasm_memory[offset];
+                export_images(names[0], compiler.library_export(export_info));
             }
-            export_images(names[0], compiler.library_export(export_info));
         }
     }
 
     function export_images(category, result_images) {
-        observableStateStore.clearOutputImage();
         for (let [name, data] of Object.entries(result_images)) {
             let image = {
                 src: image_to_src(data.width, data.height, data.pixels),

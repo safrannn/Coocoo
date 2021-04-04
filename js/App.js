@@ -1,5 +1,6 @@
-import React, { Component } from 'react';
+import React, { Component, useEffect } from 'react';
 import { toJS } from 'mobx'
+import { withStyles } from "@material-ui/core/styles";
 import { createMuiTheme, makeStyles } from "@material-ui/core/styles";
 import {
     AppBar, Box, Button, ButtonGroup, Divider, Grid, GridList, GridListTile,
@@ -26,8 +27,13 @@ import { makeObservable, observable, action, computed } from "mobx"
 
 import wabt from "wabt";
 
+import * as THREE from "three";
+// import OrbitControls from "three-orbitcontrols";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
+
+
 import './App.css';
-import { KeyboardReturn } from '@material-ui/icons';
+
 
 const regeneratorRuntime = require("regenerator-runtime");
 
@@ -40,8 +46,12 @@ class ObservableStateStore {
 
     leftSiderTabValue = 0;
     codeConsoleTabValue = 0;
-    imageOutputTabValue = 0;
+    imageBlockTabValue = 0;
     imageOutputFileListTabValue = 0;
+    renderInfo = {
+        category: "",
+        material_type: "PBRMetalness"
+    };
 
     constructor() {
         makeObservable(this, {
@@ -65,7 +75,7 @@ class ObservableStateStore {
             printConsoleWasm: action,
             leftSiderTabValue: observable,
             codeConsoleTabValue: observable,
-            imageOutputTabValue: observable,
+            imageBlockTabValue: observable,
             imageOutputFileListTabValue: observable,
         });
     }
@@ -99,9 +109,9 @@ class ObservableStateStore {
         if (!this.imageOutputFiles.get(category).hasOwnProperty(newName)) {
             return false
         } else {
-            var image_data = this.imageOutputFiles.get(category).oldName;
-            delete this.imageOutputFiles.get(category).oldName;
-            this.imageOutputFiles.get(category).newName = image_data;
+            var image_data = this.imageOutputFiles.get(category)[oldName];
+            delete this.imageOutputFiles.get(category)[oldName];
+            this.imageOutputFiles.get(category)[newName] = image_data;
             return true
         }
     }
@@ -192,6 +202,7 @@ const useStyles = makeStyles((theme) => ({
         color: "#9e9e9e",
     },
     leftSiderTabPanels: {
+        padding: theme.spacing(1),
         flexGrow: 1,
     },
     codeBlock: {
@@ -211,7 +222,7 @@ const useStyles = makeStyles((theme) => ({
         flexGrow: 1,
         display: "flex",
         height: "calc(2*(100vh - 45px - 48px - 48px)/5 - 1)",
-
+        padding: theme.spacing(1),
     },
     codeConsoleTab: {
         minWidth: 48,
@@ -229,6 +240,9 @@ const useStyles = makeStyles((theme) => ({
         flexWrap: 'wrap',
         overflow: 'scroll',
     },
+    imageInputPanel: {
+        padding: theme.spacing(1),
+    },
     gridList: {
         flexWrap: 'nowrap',
         transform: 'translateZ(0)',
@@ -241,14 +255,13 @@ const useStyles = makeStyles((theme) => ({
     imageOutputFileList: {
         flexGrow: 1,
         display: 'flex',
-        height: 'calc((100vh - 45px- 48px)/2)',
+        height: 'calc(60vh - 93px)',
         width: '100%'
     },
     imageOutputFileListTabs: {
         borderRight: `1px solid ${theme.palette.divider}`,
     },
     imageOutputFileListPanel: {
-        // width: 'calc(5*(100vw-48px)/24)',
         width: '75%',
         maxWidth: '75%',
     },
@@ -312,7 +325,7 @@ function TabPanel(props) {
             {...other}
         >
             {value === index && (
-                <Box p={1.5}>
+                <Box>
                     {children}
                 </Box>
             )}
@@ -547,19 +560,20 @@ const CodeConsoleWasm = observer(() => {
 const ImageBlock = observer(() => {
     const classes = useStyles();
     const handleChange = (event, newValue) => {
-        observableStateStore.imageOutputTabValue = newValue
+        observableStateStore.imageBlockTabValue = newValue
     };
 
     return (
         <Grid container className={classes.imageBlock}>
+
             <Grid container direction="column">
-                <Tabs variant="fullWidth" value={observableStateStore.imageOutputTabValue} onChange={handleChange} aria-label="image block">
+                <Tabs variant="fullWidth" value={observableStateStore.imageBlockTabValue} onChange={handleChange} aria-label="image block">
                     <Tab label="Input" {...a11yProps("imageBlock-tabs", 0)} />
                     <Tab label="Output" {...a11yProps("imageBlock-tabs", 1)} />
                 </Tabs>
                 <Divider />
-                <TabPanel value={observableStateStore.imageOutputTabValue} index={0} prefix="imageBlock-tabs">
-                    <Grid container>
+                <TabPanel value={observableStateStore.imageBlockTabValue} index={0} prefix="imageBlock-tabs">
+                    <Grid container direction="column">
                         <Grid item align="center" xs={12}>
                             <ImageUpload />
                         </Grid>
@@ -568,8 +582,8 @@ const ImageBlock = observer(() => {
                         </Grid>
                     </Grid>
                 </TabPanel>
-                <TabPanel value={observableStateStore.imageOutputTabValue} index={1} prefix="imageBlock-tabs">
-                    <ImageOutputFileList />
+                <TabPanel value={observableStateStore.imageBlockTabValue} index={1} prefix="imageBlock-tabs">
+                    <ImageOutputTab />
                 </TabPanel>
             </Grid>
         </Grid >
@@ -684,11 +698,12 @@ const ImageInputTab = observer(() => {
 })
 
 const ImageOutputTab = observer(() => {
+    const classes = useStyles();
     return (
-        // <div>
-        <ImageOutputFileList />
-        // <ImageOutputRender /> 
-        // </div>
+        <div>
+            <ImageOutputFileList />
+            <ImageOutputRender />
+        </div>
     );
 })
 
@@ -696,10 +711,12 @@ const ImageOutputFileList = observer(() => {
     const classes = useStyles();
     const handleChange = (event, newValue) => {
         observableStateStore.imageOutputFileListTabValue = newValue
+        observableStateStore.renderInfo.category = valueToCategory[newValue];
     };
 
     const tab = [];
     const tabPanel = [];
+    const valueToCategory = [];
 
     let i = 0;
     for (var [category, info] of observableStateStore.imageOutputFiles) {
@@ -716,6 +733,7 @@ const ImageOutputFileList = observer(() => {
                 <ImageOutputImageFileDisplay category={category} />
             </TabPanel>
         )
+        valueToCategory.push(category);
         i += 1;
     }
 
@@ -783,9 +801,86 @@ const ImageOutputImageFileDisplay = observer(({ category }) => {
 })
 
 const ImageOutputRender = observer(() => {
-    return
-})
+    var scene, camera, renderer;
+    var cube, geometry, material, frameId;
+    var width, height;
 
+    var material_name = observableStateStore.renderInfo.category;
+    var material_maps = observableStateStore.getOutputCategoryInfo(material_name);
+
+    function init() {
+        var container = document.getElementById('render_container');
+
+        width = window.innerWidth * 5 / 12;
+        height = window.innerHeight * 0.4;
+
+        scene = new THREE.Scene();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setClearColor("#263238");
+        renderer.setSize(width, height);
+        container.appendChild(renderer.domElement);
+
+        camera = new THREE.PerspectiveCamera(55, width / height, 0.01, 1000);
+        camera.position.set(-1, 1.2, 1.5)
+        camera.lookAt(0, 0, 0)
+
+        geometry = new THREE.BoxGeometry(1, 1, 1);
+
+        // material = new THREE.MeshLambertMaterial({
+        //     color: 0xff0000,
+        //     map: new THREE.TextureLoader().load('test.png')
+        // });
+
+        if (material_name == "" || material_name == "texture") {
+            material = new THREE.MeshLambertMaterial({
+                color: 0xcccccc,
+            });
+        } else {
+            material = new THREE.MeshStandardMaterial(); // PBRMetalness
+            material.color = {};//diffuse
+            material.metalnessMap = {};
+            material.normalMap = {};
+            material.alphaMap = {};
+            material.roughnessMap = {};
+            material.aoMapIntensity = {};
+            material.displacementMap = {};
+            material.emissiveMap = {};
+            // missing cavity and subsurface scattering
+        }
+        cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.dampingFactor = 0.4;
+        controls.enableDamping = true;
+
+        var spotLight = new THREE.SpotLight(0xffffff)
+        spotLight.position.set(-100, 200, 50);
+        spotLight.castShadow = true;
+        scene.add(spotLight);
+        const aolight = new THREE.AmbientLight(0x404040);
+        scene.add(aolight);
+
+        animate();
+    }
+
+    function animate() {
+        cube.rotation.y -= 0.002;
+
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    };
+
+    useEffect(() => {
+        init();
+    }, [])
+
+    return (
+        <div id="render_container"></div>
+    );
+})
 
 async function main() {
     let compiler = await import("../pkg/compiler.js");

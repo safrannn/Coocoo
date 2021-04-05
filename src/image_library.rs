@@ -50,8 +50,9 @@ impl ImageLibrary {
         }
     }
 
-    pub fn add_image(&mut self, name: String, width: i32, height: i32, data: Vec<u8>) -> i32 {
-        let new_image_data: ImageData = ImageData::new(name.clone(), width, height, data);
+    pub fn add_image(&mut self, name: String, width: i32, height: i32, pixels: Vec<u8>) -> i32 {
+        let n = pixels.len();
+        let new_image_data: ImageData = ImageData::new(name.clone(), width, height, pixels);
         let id = self.content.len() as i32;
         let img = self
             .content
@@ -82,6 +83,7 @@ impl ImageLibrary {
             if let Some(data) = self.content.get_mut(id) {
                 let mut new_data = data.clone();
                 new_data.name = name.clone();
+                let n = data.pixels.len();
                 result.insert(name.clone(), new_data);
             }
         }
@@ -95,11 +97,11 @@ lazy_static! {
 }
 
 #[wasm_bindgen]
-pub fn library_add_image(name: String, width: i32, height: i32, data: Vec<u8>) {
+pub fn library_add_image(name: String, width: i32, height: i32, pixels: Vec<u8>) {
     IMAGE_LIBRARY
         .lock()
         .unwrap()
-        .add_image(name, width, height, data);
+        .add_image(name, width, height, pixels);
 }
 
 #[wasm_bindgen]

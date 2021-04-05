@@ -609,24 +609,11 @@ function ImageUpload() {
                 let imageName = file.name.split(".")[0];
                 let image = {
                     src: "",
-                    width: 0,
-                    height: 0,
-                    pixels: [],
                 };
                 let reader = new FileReader();
                 reader.onload = function () {
                     image.src = reader.result;
-                    let img = new Image();
-                    img.onload = function () {
-                        image.height = img.height;
-                        image.width = img.width;
-                        let imgContext = document.createElement("canvas").getContext("2d");
-                        imgContext.drawImage(img, 0, 0);
-                        let imageData = imgContext.getImageData(0, 0, img.width, img.height).data;
-                        image.pixels = new Uint8Array(imageData.buffer);
-                        observableStateStore.addInputImage(imageName, image);
-                    }
-                    img.src = image.src;
+                    observableStateStore.addInputImage(imageName, image);
                 };
                 reader.readAsDataURL(file);
             } else {
@@ -737,6 +724,8 @@ const ImageOutputFileList = observer(() => {
         i += 1;
     }
 
+    observableStateStore.renderInfo.category = valueToCategory[0];
+
     return (
         <div className={classes.imageOutputFileList} >
             <Tabs
@@ -762,8 +751,6 @@ const ImageOutputImageFileDisplay = observer(({ category }) => {
         return
     }
 
-    console.log("category", category);
-    console.log("files", toJS(files));
     const items = [];
     for (const [tileName, tile] of Object.entries(files)) {
         let name = tileName;
@@ -784,7 +771,7 @@ const ImageOutputImageFileDisplay = observer(({ category }) => {
                         </form>
                     }
                     actionIcon={
-                        <Button href={tile.src} download={tileName}>
+                        <Button href={tile.src} download={category + "_" + tileName}>
                             <GetAppIcon>
                             </GetAppIcon>
                         </Button>
@@ -806,7 +793,7 @@ const ImageOutputRender = observer(() => {
     var width, height;
 
     var material_name = observableStateStore.renderInfo.category;
-    var material_maps = observableStateStore.getOutputCategoryInfo(material_name);
+    var material_maps = toJS(observableStateStore.getOutputCategoryInfo(material_name));
 
     function init() {
         var container = document.getElementById('render_container');
@@ -821,32 +808,45 @@ const ImageOutputRender = observer(() => {
         renderer.setSize(width, height);
         container.appendChild(renderer.domElement);
 
-        camera = new THREE.PerspectiveCamera(55, width / height, 0.01, 1000);
+        camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 1000);
         camera.position.set(-1, 1.2, 1.5)
         camera.lookAt(0, 0, 0)
 
-        geometry = new THREE.BoxGeometry(1, 1, 1);
-
-        // material = new THREE.MeshLambertMaterial({
-        //     color: 0xff0000,
-        //     map: new THREE.TextureLoader().load('test.png')
-        // });
+        // geometry = new THREE.BoxGeometry(1, 1, 1);
+        geometry = new THREE.SphereGeometry(1, 32, 32);;
 
         if (material_name == "" || material_name == "texture") {
             material = new THREE.MeshLambertMaterial({
-                color: 0xcccccc,
+                // color: 0xcccccc,
+                map: new THREE.TextureLoader().load('test.png')
             });
         } else {
             material = new THREE.MeshStandardMaterial(); // PBRMetalness
-            material.color = {};//diffuse
-            material.metalnessMap = {};
-            material.normalMap = {};
-            material.alphaMap = {};
-            material.roughnessMap = {};
-            material.aoMapIntensity = {};
-            material.displacementMap = {};
-            material.emissiveMap = {};
-            // missing cavity and subsurface scattering
+            if ("diffuse" in material_maps) {
+                material.map = new THREE.TextureLoader().load(material_maps["diffuse"].src);
+            }
+            if ("metalness" in material_maps) {
+                material.metalnessMap = new THREE.TextureLoader().load(material_maps["metalness"].src);
+            }
+            if ("normal" in material_maps) {
+                material.normalMap = new THREE.TextureLoader().load(material_maps["normal"].src);
+            }
+            if ("transparency" in material_maps) {
+                material.alphaMap = new THREE.TextureLoader().load(material_maps["transparency"].src);
+            }
+            if ("roughness" in material_maps) {
+                material.roughnessMap = new THREE.TextureLoader().load(material_maps["roughness"].src);
+            }
+            if ("ao" in material_maps) {
+                material.aoMap = new THREE.TextureLoader().load(material_maps["ao"].src);
+            }
+            if ("displacement" in material_maps) {
+                material.displacementMap = new THREE.TextureLoader().load(material_maps["displacement"].src);
+            }
+            if ("emissive" in material_maps) {
+                material.emissiveMap = new THREE.TextureLoader().load(material_maps["emissive"].src);
+            }
+            //missing cavity and subsurface scattering
         }
         cube = new THREE.Mesh(geometry, material);
         scene.add(cube);
@@ -856,10 +856,14 @@ const ImageOutputRender = observer(() => {
         controls.dampingFactor = 0.4;
         controls.enableDamping = true;
 
-        var spotLight = new THREE.SpotLight(0xffffff)
-        spotLight.position.set(-100, 200, 50);
-        spotLight.castShadow = true;
-        scene.add(spotLight);
+        var spotLight1 = new THREE.SpotLight(0xffffff)
+        spotLight1.position.set(-100, 200, 50);
+        spotLight1.castShadow = true;
+        scene.add(spotLight1);
+        var spotLight2 = new THREE.SpotLight(0xffffff, 0.2)
+        spotLight2.position.set(100, -200, -50);
+        spotLight2.castShadow = false;
+        scene.add(spotLight2);
         const aolight = new THREE.AmbientLight(0x404040);
         scene.add(aolight);
 
@@ -882,13 +886,49 @@ const ImageOutputRender = observer(() => {
     );
 })
 
+
+function pixelsToUrl(width, height, pixels) {
+    let canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    let context = canvas.getContext("2d");
+    let imageData = context.createImageData(width, height);
+    imageData.data.set(pixels);
+    context.putImageData(imageData, 0, 0);
+    return canvas.toDataURL()
+}
+
+function urlToImage(url) {
+    let image = {
+        width: 0,
+        height: 0,
+        pixels: [],
+    };
+
+    let img = new Image();
+    img.src = url;
+    let canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    let context = canvas.getContext("2d");
+    context.drawImage(img, 0, 0, img.width, img.height);
+    image.pixels = context.getImageData(0, 0, img.width, img.height).data;
+    image.width = img.width;
+    image.height = img.height;
+    canvas.remove();
+    return image
+}
+
+
+
 async function main() {
     let compiler = await import("../pkg/compiler.js");
 
     function processImageInput() {
         let names = [...observableStateStore.imageInputFiles.keys()];
         for (const [name, data] of observableStateStore.imageInputFiles) {
-            compiler.library_add_image(name, data.width, data.height, data.pixels);
+            let image = urlToImage(data.src)
+            compiler.library_add_image(name, image.width, image.height, image.pixels);
         }
         return names;
     }
@@ -969,7 +1009,7 @@ async function main() {
         for (let [offset, names] of Object.entries(output_material_info)) {
             if (wasm_memory[offset] < 2147483647) {
                 export_info = {}
-                export_info[names[0] + "_" + names[1]] = wasm_memory[offset];
+                export_info[names[1]] = wasm_memory[offset];
                 export_images(names[0], compiler.library_export(export_info));
             }
         }
@@ -977,24 +1017,14 @@ async function main() {
 
     function export_images(category, result_images) {
         for (let [name, data] of Object.entries(result_images)) {
+
             let image = {
-                src: image_to_src(data.width, data.height, data.pixels),
+                src: pixelsToUrl(data.width, data.height, data.pixels),
                 width: data.width,
                 height: data.height,
             };
             observableStateStore.addOutputImage(category, name, image);
         }
-    }
-
-    function image_to_src(width, height, pixels) {
-        let canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        let context = canvas.getContext("2d");
-        let imageData = context.createImageData(width, height);
-        imageData.data.set(pixels);
-        context.putImageData(imageData, 0, 0);
-        return canvas.toDataURL()
     }
 }
 

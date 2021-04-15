@@ -33,6 +33,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 
 
 import './App.css';
+import { CallToActionSharp } from '@material-ui/icons';
 
 
 const regeneratorRuntime = require("regenerator-runtime");
@@ -48,10 +49,21 @@ class ObservableStateStore {
     codeConsoleTabValue = 0;
     imageBlockTabValue = 0;
     imageOutputFileListTabValue = 0;
+    imageOutputFileListArray = [];
     renderInfo = {
         category: "",
         material_type: "PBRMetalness"
     };
+
+    scene = new THREE.Scene();
+    mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(5, 32, 32),
+        new THREE.MeshLambertMaterial({
+            color: 0x000000,
+        }));;
+    camera = {};
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+
 
     constructor() {
         makeObservable(this, {
@@ -65,6 +77,7 @@ class ObservableStateStore {
             deleteInputImage: action,
             addOutputImage: action,
             renameOutputImage: action,
+            getImageOutputFilesSize: action,
             getOutputCategoryInfo: action,
             clearOutputImage: action,
             changeCode: action,
@@ -77,6 +90,17 @@ class ObservableStateStore {
             codeConsoleTabValue: observable,
             imageBlockTabValue: observable,
             imageOutputFileListTabValue: observable,
+            imageOutputFileListArray: observable,
+            setImageOutputFileListArray: action,
+            getImageOutputFileListArrayContent: action,
+            changeImageOutputFileListTabValue: action,
+            scene: observable,
+            mesh: observable,
+            camera: observable,
+            renderer: observable,
+            initThreeJS: action,
+            updateMesh: action,
+            resetMesh: action,
         });
     }
 
@@ -115,9 +139,12 @@ class ObservableStateStore {
             return true
         }
     }
+    getImageOutputFilesSize() {
+        return this.imageOutputFiles.size;
+    }
 
     getOutputCategoryInfo(category) {
-        return observableStateStore.imageOutputFiles.get(category)
+        return this.imageOutputFiles.get(category)
     }
 
     clearOutputImage() {
@@ -143,6 +170,106 @@ class ObservableStateStore {
     }
     printConsoleWasm(wasm) {
         this.consoleWasm = wasm;
+    }
+
+    changeImageOutputFileListTabValue(newValue) {
+        this.imageOutputFileListTabValue = newValue;
+    }
+
+    setImageOutputFileListArray(newValue) {
+        this.imageOutputFileListArray = newValue;
+    }
+
+    getImageOutputFileListArrayContent(index) {
+        return this.imageOutputFileListArray[index];
+    }
+
+    initThreeJS(container) {
+
+        var width = window.innerWidth * 5 / 12;
+        var height = window.innerHeight * 0.4;
+
+        this.renderer.setClearColor("#000000");
+        this.renderer.setSize(width, height);
+        container.appendChild(this.renderer.domElement);
+
+        this.camera = new THREE.PerspectiveCamera(55, width / height, 0.01, 1000);
+        this.camera.position.set(-10, 12, 15)
+        this.camera.lookAt(0, 0, 0)
+
+        // var geometry = new THREE.BoxGeometry(5, 5, 5);
+        this.mesh.name = "mesh";
+        this.scene.add(this.mesh);
+
+        const controls = new OrbitControls(this.camera, this.renderer.domElement);
+        controls.dampingFactor = 0.4;
+        controls.enableDamping = true;
+
+        var spotLight1 = new THREE.SpotLight(0xffffff, 1.0)
+        spotLight1.position.set(-100, 200, 50);
+        spotLight1.castShadow = true;
+        this.scene.add(spotLight1);
+        var spotLight2 = new THREE.SpotLight(0xffffff, 0.4)
+        spotLight2.position.set(100, -200, -50);
+        spotLight2.castShadow = false;
+        this.scene.add(spotLight2);
+        var aolight = new THREE.AmbientLight(0xffffff, 0.2);
+        this.scene.add(aolight);
+    }
+
+    updateMesh(material_name) {
+        this.scene.remove(this.scene.getObjectByName("mesh"));
+
+        // var geometry = new THREE.BoxGeometry(5, 5, 5);
+        var geometry = new THREE.SphereGeometry(5, 32, 32);
+        var material = new THREE.MeshLambertMaterial({
+            color: 0x000000,
+        });
+
+        var material_maps = toJS(observableStateStore.getOutputCategoryInfo(material_name))
+        if (!(material_maps == undefined || material_name == "" || material_name == "texture")) {
+            material = new THREE.MeshStandardMaterial(); // PBRMetalness
+            if ("diffuse" in material_maps) {
+                material.map = new THREE.TextureLoader().load(material_maps["diffuse"].src);
+            }
+            if ("metalness" in material_maps) {
+                material.metalnessMap = new THREE.TextureLoader().load(material_maps["metalness"].src);
+            }
+            if ("normal" in material_maps) {
+                material.normalMap = new THREE.TextureLoader().load(material_maps["normal"].src);
+            }
+            if ("transparency" in material_maps) {
+                material.alphaMap = new THREE.TextureLoader().load(material_maps["transparency"].src);
+            }
+            if ("roughness" in material_maps) {
+                material.roughnessMap = new THREE.TextureLoader().load(material_maps["roughness"].src);
+            }
+            if ("ao" in material_maps) {
+                material.aoMap = new THREE.TextureLoader().load(material_maps["ao"].src);
+            }
+            if ("displacement" in material_maps) {
+                material.displacementMap = new THREE.TextureLoader().load(material_maps["displacement"].src);
+            }
+            if ("emissive" in material_maps) {
+                material.emissiveMap = new THREE.TextureLoader().load(material_maps["emissive"].src);
+            }
+            //missing cavity and subsurface scattering
+        }
+
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.name = "mesh";
+        this.scene.add(this.mesh);
+    }
+
+    resetMesh() {
+        this.scene.remove(this.scene.getObjectByName("mesh"));
+        this.mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(5, 32, 32),
+            new THREE.MeshLambertMaterial({
+                color: 0x000000,
+            }));
+        this.mesh.name = "mesh";
+        this.scene.add(this.mesh);
     }
 }
 
@@ -560,12 +687,12 @@ const CodeConsoleWasm = observer(() => {
 const ImageBlock = observer(() => {
     const classes = useStyles();
     const handleChange = (event, newValue) => {
-        observableStateStore.imageBlockTabValue = newValue
+        observableStateStore.imageBlockTabValue = newValue;
+        observableStateStore.changeImageOutputFileListTabValue(0)
     };
 
     return (
         <Grid container className={classes.imageBlock}>
-
             <Grid container direction="column">
                 <Tabs variant="fullWidth" value={observableStateStore.imageBlockTabValue} onChange={handleChange} aria-label="image block">
                     <Tab label="Input" {...a11yProps("imageBlock-tabs", 0)} />
@@ -696,14 +823,17 @@ const ImageOutputTab = observer(() => {
 
 const ImageOutputFileList = observer(() => {
     const classes = useStyles();
-    const handleChange = (event, newValue) => {
-        observableStateStore.imageOutputFileListTabValue = newValue
-        observableStateStore.renderInfo.category = valueToCategory[newValue];
+
+    const handleChange = (event, newTabValue) => {
+        observableStateStore.changeImageOutputFileListTabValue(newTabValue)
+        var material_name = observableStateStore.getImageOutputFileListArrayContent(newTabValue);
+        observableStateStore.updateMesh(material_name);
+        renderMaterial();
     };
 
     const tab = [];
     const tabPanel = [];
-    const valueToCategory = [];
+    const imageOutputFileListArray = [];
 
     let i = 0;
     for (var [category, info] of observableStateStore.imageOutputFiles) {
@@ -720,11 +850,11 @@ const ImageOutputFileList = observer(() => {
                 <ImageOutputImageFileDisplay category={category} />
             </TabPanel>
         )
-        valueToCategory.push(category);
+        imageOutputFileListArray.push(category);
         i += 1;
     }
 
-    observableStateStore.renderInfo.category = valueToCategory[0];
+    observableStateStore.setImageOutputFileListArray(imageOutputFileListArray);
 
     return (
         <div className={classes.imageOutputFileList} >
@@ -788,104 +918,33 @@ const ImageOutputImageFileDisplay = observer(({ category }) => {
 })
 
 const ImageOutputRender = observer(() => {
-    var scene, camera, renderer;
-    var cube, geometry, material, frameId;
-    var width, height;
-
-    var material_name = observableStateStore.renderInfo.category;
-    var material_maps = toJS(observableStateStore.getOutputCategoryInfo(material_name));
-
-    function init() {
+    useEffect(() => {
         var container = document.getElementById('render_container');
 
-        width = window.innerWidth * 5 / 12;
-        height = window.innerHeight * 0.4;
+        observableStateStore.initThreeJS(container);
 
-        scene = new THREE.Scene();
+        renderMaterial();
+    }, [])
 
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setClearColor("#263238");
-        renderer.setSize(width, height);
-        container.appendChild(renderer.domElement);
+    return (
+        <div id="render_container">
+        </div>
+    );
+})
 
-        camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 1000);
-        camera.position.set(-1, 1.2, 1.5)
-        camera.lookAt(0, 0, 0)
-
-        // geometry = new THREE.BoxGeometry(1, 1, 1);
-        geometry = new THREE.SphereGeometry(1, 32, 32);;
-
-        if (material_name == "" || material_name == "texture") {
-            material = new THREE.MeshLambertMaterial({
-                // color: 0xcccccc,
-                map: new THREE.TextureLoader().load('test.png')
-            });
-        } else {
-            material = new THREE.MeshStandardMaterial(); // PBRMetalness
-            if ("diffuse" in material_maps) {
-                material.map = new THREE.TextureLoader().load(material_maps["diffuse"].src);
-            }
-            if ("metalness" in material_maps) {
-                material.metalnessMap = new THREE.TextureLoader().load(material_maps["metalness"].src);
-            }
-            if ("normal" in material_maps) {
-                material.normalMap = new THREE.TextureLoader().load(material_maps["normal"].src);
-            }
-            if ("transparency" in material_maps) {
-                material.alphaMap = new THREE.TextureLoader().load(material_maps["transparency"].src);
-            }
-            if ("roughness" in material_maps) {
-                material.roughnessMap = new THREE.TextureLoader().load(material_maps["roughness"].src);
-            }
-            if ("ao" in material_maps) {
-                material.aoMap = new THREE.TextureLoader().load(material_maps["ao"].src);
-            }
-            if ("displacement" in material_maps) {
-                material.displacementMap = new THREE.TextureLoader().load(material_maps["displacement"].src);
-            }
-            if ("emissive" in material_maps) {
-                material.emissiveMap = new THREE.TextureLoader().load(material_maps["emissive"].src);
-            }
-            //missing cavity and subsurface scattering
-        }
-        cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
-
-
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.dampingFactor = 0.4;
-        controls.enableDamping = true;
-
-        var spotLight1 = new THREE.SpotLight(0xffffff)
-        spotLight1.position.set(-100, 200, 50);
-        spotLight1.castShadow = true;
-        scene.add(spotLight1);
-        var spotLight2 = new THREE.SpotLight(0xffffff, 0.2)
-        spotLight2.position.set(100, -200, -50);
-        spotLight2.castShadow = false;
-        scene.add(spotLight2);
-        const aolight = new THREE.AmbientLight(0x404040);
-        scene.add(aolight);
-
-        animate();
-    }
-
-    function animate() {
-        cube.rotation.y -= 0.002;
+const renderMaterial = function () {
+    var scene = observableStateStore.scene;
+    var camera = observableStateStore.camera;
+    var mesh = observableStateStore.mesh;
+    var renderer = observableStateStore.renderer;
+    const animate = function () {
+        mesh.rotation.y -= 0.002;
 
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
     };
-
-    useEffect(() => {
-        init();
-    }, [])
-
-    return (
-        <div id="render_container"></div>
-    );
-})
-
+    animate();
+}
 
 function pixelsToUrl(width, height, pixels) {
     let canvas = document.createElement("canvas");
@@ -934,11 +993,14 @@ async function main() {
     }
 
     document.getElementById('run').onclick = async function () {
+        observableStateStore.resetMesh();
+
         compiler.library_reset();
         observableStateStore.clearConsoleMessage();
         observableStateStore.clearOutputImage();
 
         let image_names = processImageInput();
+
         let output = compiler.code_to_wasm(observableStateStore.code, image_names);
         let output_wasm_buffer = new Uint8Array(output[0]);
         let output_image_info = output[1]; // image_name, image_id
@@ -950,6 +1012,7 @@ async function main() {
         if (!has_error) {
             observableStateStore.addConsoleMessage("\n✔ Compile finished.");
         }
+
         print_wat(output_wasm_buffer);
 
         let importObject = {

@@ -693,6 +693,7 @@ const ImageBlock = observer(() => {
 
     return (
         <Grid container className={classes.imageBlock}>
+            <div id="loadingSpinner" className="loader loader-default" data-text="Loading"></div>
             <Grid container direction="column">
                 <Tabs variant="fullWidth" value={observableStateStore.imageBlockTabValue} onChange={handleChange} aria-label="image block">
                     <Tab label="Input" {...a11yProps("imageBlock-tabs", 0)} />
@@ -993,6 +994,9 @@ async function main() {
     }
 
     document.getElementById('run').onclick = async function () {
+        var loadElement = document.getElementById("loadingSpinner");
+        loadElement.classList.add("is-active");
+
         observableStateStore.resetMesh();
 
         compiler.library_reset();
@@ -1000,6 +1004,7 @@ async function main() {
         observableStateStore.clearOutputImage();
 
         let image_names = processImageInput();
+        observableStateStore.addConsoleMessage(time_now() + " ✔ Image uploaded.");
 
         let output = compiler.code_to_wasm(observableStateStore.code, image_names);
         let output_wasm_buffer = new Uint8Array(output[0]);
@@ -1008,17 +1013,14 @@ async function main() {
         // console.log(output)
         // console.log("output_material_info", output_material_info)
 
-        let has_error = observableStateStore.consoleMessage.length == 0 ? false : true
-        if (!has_error) {
-            observableStateStore.addConsoleMessage("\n✔ Compile finished.");
-        }
+        observableStateStore.addConsoleMessage(time_now() + " ✔ Compile finished.");
 
         print_wat(output_wasm_buffer);
 
-        let importObject = {
+        let wasmImportObject = {
             env: {
                 logger: function (arg) {
-                    // console.log(arg);
+                    console.log(arg);
                 },
                 darken: function (img_id, value) {
                     return compiler.darken(img_id, value)
@@ -1029,17 +1031,37 @@ async function main() {
                 grayscale: function (img_id) {
                     return compiler.grayscale(img_id)
                 },
+                resize_to_material: function (img_id, width, height) {
+                    return compiler.resize_to_material(img_id, width, height)
+                },
             }
         };
-        let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, importObject);
+        let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, wasmImportObject);
+        observableStateStore.addConsoleMessage(time_now() + " ✔ Wasm module instantiated.");
+
         instance.exports.main();
+        // console.log(wasm_memory.slice(0, 200))
+        observableStateStore.addConsoleMessage(time_now() + " ✔ Wasm module executed.");
 
         var wasm_memory = new Uint32Array(instance.exports.mem.buffer)
-        // console.log(wasm_memory.slice(0, 200))
+        process_export(output_image_info, wasm_memory, output_material_info);
 
-        if (!has_error) {
-            observableStateStore.addConsoleMessage("✔ Execution finished.");
-        }
+        observableStateStore.addConsoleMessage(time_now() + " ✔ Export finished.");
+
+        loadElement.classList.remove("is-active");
+        // const wasm_raw = new Promise((resolve, _) => {
+        //     return output_wasm_buffer;
+        // });
+        // WebAssembly.instantiateStreaming(wasm_raw, wasmImportObject).then(
+        //     obj => {
+        //         var instance = obj.instance;
+        //         instance.exports.main();
+        //         var wasm_memory = new Uint32Array(instance.exports.mem.buffer);
+        //         observableStateStore.addConsoleMessage("\n✔ Wasm module executed.");
+        //         process_export(output_image_info, wasm_memory, output_material_info);
+        //         observableStateStore.addConsoleMessage("✔ Export finished.");
+        //     }
+        // );
 
         async function print_wat(buffer) {
             let w = await wabt()
@@ -1052,12 +1074,6 @@ async function main() {
             });
             observableStateStore.printConsoleWasm(wat);
         }
-
-        process_export(output_image_info, wasm_memory, output_material_info);
-
-        if (!has_error) {
-            observableStateStore.addConsoleMessage("✔ Export finished.");
-        }
     }
 
     function process_export(output_image_info, wasm_memory, output_material_info) {
@@ -1068,7 +1084,7 @@ async function main() {
         }
         export_images("textures", compiler.library_export(export_info));
 
-        // materials 
+        // materials
         for (let [offset, names] of Object.entries(output_material_info)) {
             if (wasm_memory[offset] < 2147483647) {
                 export_info = {}
@@ -1091,6 +1107,10 @@ async function main() {
     }
 }
 
+function time_now() {
+    var new_date = new Date();
+    return new_date.toLocaleTimeString('en-US', { hour12: false }) + ":" + new_date.getUTCMilliseconds();
+}
 main();
 
 

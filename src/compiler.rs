@@ -199,10 +199,10 @@ impl Compiler {
     }
 
     pub fn export(&mut self) -> Vec<JsValue> {
-        let e_result = JsValue::from_serde(&self.result).unwrap();
-        let e_images = self.symbol_table.library_tracker.export_images();
+        let e_src = JsValue::from_serde(&self.result).unwrap();
+        let e_textures = self.symbol_table.library_tracker.export_textures();
         let e_materials = self.symbol_table.library_tracker.export_materials();
-        vec![e_result, e_images, e_materials]
+        vec![e_src, e_textures, e_materials]
     }
 }
 
@@ -224,23 +224,44 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
         HashMap::new();
     lib_func_list.insert("logger".to_string(), (vec![ValType::I32], vec![]));
     lib_func_list.insert(
+        "resize".to_string(),
+        (vec![ValType::I32; 3], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
         "darken".to_string(),
-        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+        (vec![ValType::I32; 2], vec![ValType::I32]),
     );
     lib_func_list.insert(
         "blank_image".to_string(),
-        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+        (vec![ValType::I32; 6], vec![ValType::I32]),
     );
     lib_func_list.insert(
         "grayscale".to_string(),
         (vec![ValType::I32], vec![ValType::I32]),
     );
     lib_func_list.insert(
-        "resize_to_material".to_string(),
-        (
-            vec![ValType::I32, ValType::I32, ValType::I32],
-            vec![ValType::I32],
-        ),
+        "invert_color".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "flip_horizontal".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "flip_vertical".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "mask_channel_r".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "mask_channel_g".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "mask_channel_b".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
     );
     return lib_func_list;
 }

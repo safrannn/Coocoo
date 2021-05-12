@@ -1,6 +1,5 @@
 import React, { Component, useEffect } from 'react';
 import { toJS } from 'mobx'
-import { withStyles } from "@material-ui/core/styles";
 import { createMuiTheme, makeStyles } from "@material-ui/core/styles";
 import {
     AppBar, Box, Button, ButtonGroup, Divider, Grid, GridList, GridListTile,
@@ -22,18 +21,15 @@ import RemoveCircleOutlineIcon from '@material-ui/icons/RemoveCircleOutline';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import ChevronRightIcon from '@material-ui/icons/ChevronRight';
 
-import { useLocalStore, useObserver, observer } from "mobx-react";
-import { makeObservable, observable, action, computed } from "mobx"
+import { observer } from "mobx-react";
+import { makeObservable, observable, action } from "mobx"
 
 import wabt from "wabt";
 
 import * as THREE from "three";
-// import OrbitControls from "three-orbitcontrols";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 
-
 import './App.css';
-import { CallToActionSharp } from '@material-ui/icons';
 
 
 const regeneratorRuntime = require("regenerator-runtime");
@@ -41,6 +37,7 @@ const regeneratorRuntime = require("regenerator-runtime");
 class ObservableStateStore {
     imageInputFiles = new Map();
     imageOutputFiles = new Map();
+    materialInstanceType = {};
     code = "";
     consoleMessage = "";
     consoleWasm = "";
@@ -50,10 +47,6 @@ class ObservableStateStore {
     imageBlockTabValue = 0;
     imageOutputFileListTabValue = 0;
     imageOutputFileListArray = [];
-    renderInfo = {
-        category: "",
-        material_type: "PBRMetalness"
-    };
 
     scene = new THREE.Scene();
     mesh = new THREE.Mesh(
@@ -78,8 +71,11 @@ class ObservableStateStore {
             addOutputImage: action,
             renameOutputImage: action,
             getImageOutputFilesSize: action,
-            getOutputCategoryInfo: action,
+            getOutputMaterialInstance: action,
             clearOutputImage: action,
+            materialInstanceType: observable,
+            addMaterialInstanceType: action,
+            getMaterialInstanceType: action,
             changeCode: action,
             clearCode: action,
             printConsoleMessage: action,
@@ -122,20 +118,20 @@ class ObservableStateStore {
         this.imageInputFiles.delete(name);
     }
 
-    addOutputImage(category, image_name, image_data) {
-        if (!this.imageOutputFiles.get(category)) {
-            this.imageOutputFiles.set(category, {});
+    addOutputImage(material_instance_name, image_name, image_data) {
+        if (!this.imageOutputFiles.get(material_instance_name)) {
+            this.imageOutputFiles.set(material_instance_name, {});
         }
-        this.imageOutputFiles.get(category)[image_name] = image_data;
+        this.imageOutputFiles.get(material_instance_name)[image_name] = image_data;
     }
 
-    renameOutputImage(category, oldName, newName) {
-        if (!this.imageOutputFiles.get(category).hasOwnProperty(newName)) {
+    renameOutputImage(material_instance_name, oldName, newName) {
+        if (!this.imageOutputFiles.get(material_instance_name).hasOwnProperty(newName)) {
             return false
         } else {
-            var image_data = this.imageOutputFiles.get(category)[oldName];
-            delete this.imageOutputFiles.get(category)[oldName];
-            this.imageOutputFiles.get(category)[newName] = image_data;
+            var image_data = this.imageOutputFiles.get(material_instance_name)[oldName];
+            delete this.imageOutputFiles.get(material_instance_name)[oldName];
+            this.imageOutputFiles.get(material_instance_name)[newName] = image_data;
             return true
         }
     }
@@ -143,12 +139,23 @@ class ObservableStateStore {
         return this.imageOutputFiles.size;
     }
 
-    getOutputCategoryInfo(category) {
-        return this.imageOutputFiles.get(category)
+    getOutputMaterialInstance(material_instance) {
+        return this.imageOutputFiles.get(material_instance)
     }
 
     clearOutputImage() {
         this.imageOutputFiles.clear();
+        this.materialInstanceType = {};
+    }
+
+    addMaterialInstanceType(material_instance_name, material_type) {
+        if (this.materialInstanceType[material_instance_name] == undefined) {
+            this.materialInstanceType[material_instance_name] = material_type;
+        }
+    }
+
+    getMaterialInstanceType(material_instance_name) {
+        return this.materialInstanceType[material_instance_name];
     }
 
     changeCode(src) {
@@ -217,18 +224,19 @@ class ObservableStateStore {
         this.scene.add(aolight);
     }
 
-    updateMesh(material_name) {
+    updateMesh(material_instance_name) {
         this.scene.remove(this.scene.getObjectByName("mesh"));
 
-        // var geometry = new THREE.BoxGeometry(5, 5, 5);
         var geometry = new THREE.SphereGeometry(5, 32, 32);
         var material = new THREE.MeshLambertMaterial({
             color: 0x000000,
         });
 
-        var material_maps = toJS(observableStateStore.getOutputCategoryInfo(material_name))
-        if (!(material_maps == undefined || material_name == "" || material_name == "texture")) {
-            material = new THREE.MeshStandardMaterial(); // PBRMetalness
+        var material_maps = toJS(observableStateStore.getOutputMaterialInstance(material_instance_name))
+        var material_instance_type = this.getMaterialInstanceType(material_instance_name);
+        if (material_instance_type == "PBRMetalness") {
+            // missing cavity and subsurface scattering
+            material = new THREE.MeshStandardMaterial();
             if ("diffuse" in material_maps) {
                 material.map = new THREE.TextureLoader().load(material_maps["diffuse"].src);
             }
@@ -253,7 +261,50 @@ class ObservableStateStore {
             if ("emissive" in material_maps) {
                 material.emissiveMap = new THREE.TextureLoader().load(material_maps["emissive"].src);
             }
-            //missing cavity and subsurface scattering
+        } else if (material_instance_type == "PBRSpecular") {
+            // missing specular workflow in threejs
+            // missing specular, glossiness,cavity and subsurface scattering
+            material = new THREE.MeshStandardMaterial();
+            if ("albedo" in material_maps) {
+                material.map = new THREE.TextureLoader().load(material_maps["albedo"].src);
+            }
+            if ("normal" in material_maps) {
+                material.normalMap = new THREE.TextureLoader().load(material_maps["normal"].src);
+            }
+            if ("transparency" in material_maps) {
+                material.alphaMap = new THREE.TextureLoader().load(material_maps["transparency"].src);
+            }
+            if ("ao" in material_maps) {
+                material.aoMap = new THREE.TextureLoader().load(material_maps["ao"].src);
+            }
+            if ("displacement" in material_maps) {
+                material.displacementMap = new THREE.TextureLoader().load(material_maps["displacement"].src);
+            }
+            if ("emissive" in material_maps) {
+                material.emissiveMap = new THREE.TextureLoader().load(material_maps["emissive"].src);
+            }
+        } else if (material_instance_type == "UnityStandardSpecular") {
+            // missing specular workflow in threejs
+            // missing specular and detailed_mask
+            material = new THREE.MeshStandardMaterial();
+            if ("albedo" in material_maps) {
+                material.map = new THREE.TextureLoader().load(material_maps["albedo"].src);
+            }
+            if ("normal" in material_maps) {
+                material.normalMap = new THREE.TextureLoader().load(material_maps["normal"].src);
+            }
+            if ("transparency" in material_maps) {
+                material.alphaMap = new THREE.TextureLoader().load(material_maps["transparency"].src);
+            }
+            if ("ao" in material_maps) {
+                material.aoMap = new THREE.TextureLoader().load(material_maps["ao"].src);
+            }
+            if ("height" in material_maps) {
+                material.displacementMap = new THREE.TextureLoader().load(material_maps["height"].src);
+            }
+            if ("emissive" in material_maps) {
+                material.emissiveMap = new THREE.TextureLoader().load(material_maps["emissive"].src);
+            }
         }
 
         this.mesh = new THREE.Mesh(geometry, material);
@@ -837,9 +888,9 @@ const ImageOutputFileList = observer(() => {
     const imageOutputFileListArray = [];
 
     let i = 0;
-    for (var [category, info] of observableStateStore.imageOutputFiles) {
+    for (var [material_instance, info] of observableStateStore.imageOutputFiles) {
         tab.push(
-            <Tab key={i} label={category} {...a11yProps("imageOutputFileList-tabs", i)} />
+            <Tab key={i} label={material_instance} {...a11yProps("imageOutputFileList-tabs", i)} />
         )
         tabPanel.push(
             <TabPanel value={observableStateStore.imageOutputFileListTabValue}
@@ -848,10 +899,10 @@ const ImageOutputFileList = observer(() => {
                 prefix="imageOutputFileList-tabs"
                 className={classes.imageOutputFileListPanel}
             >
-                <ImageOutputImageFileDisplay category={category} />
+                <ImageOutputImageFileDisplay material_instance={material_instance} />
             </TabPanel>
         )
-        imageOutputFileListArray.push(category);
+        imageOutputFileListArray.push(material_instance);
         i += 1;
     }
 
@@ -873,12 +924,12 @@ const ImageOutputFileList = observer(() => {
     );
 })
 
-const ImageOutputImageFileDisplay = observer(({ category }) => {
+const ImageOutputImageFileDisplay = observer(({ material_instance }) => {
     const classes = useStyles();
 
-    let files = observableStateStore.getOutputCategoryInfo(category);
+    let files = observableStateStore.getOutputMaterialInstance(material_instance);
     if (files == undefined) {
-        console.log(category, " doesn't exist.")
+        console.log(material_instance, " doesn't exist.")
         return
     }
 
@@ -902,7 +953,7 @@ const ImageOutputImageFileDisplay = observer(({ category }) => {
                         </form>
                     }
                     actionIcon={
-                        <Button href={tile.src} download={category + "_" + tileName}>
+                        <Button href={tile.src} download={material_instance + "_" + tileName}>
                             <GetAppIcon>
                             </GetAppIcon>
                         </Button>
@@ -1008,10 +1059,10 @@ async function main() {
 
         let output = compiler.code_to_wasm(observableStateStore.code, image_names);
         let output_wasm_buffer = new Uint8Array(output[0]);
-        let output_image_info = output[1]; // image_name, image_id
-        let output_material_info = output[2]; // position in mem, [material_name, channel_name]
+        let output_textures_info = output[1]; // image_name, image_id
+        let output_materials_info = output[2]; // position in mem, [material_name, channel_name, material_type]
         // console.log(output)
-        // console.log("output_material_info", output_material_info)
+        // console.log("output_materials_info", output_materials_info)
 
         observableStateStore.addConsoleMessage(time_now() + " ✔ Compile finished.");
 
@@ -1022,17 +1073,35 @@ async function main() {
                 logger: function (arg) {
                     console.log(arg);
                 },
+                resize: function (img_id, width, height) {
+                    return compiler.resize(img_id, width, height)
+                },
                 darken: function (img_id, value) {
                     return compiler.darken(img_id, value)
                 },
-                blank_image: function (width, height) {
-                    return compiler.blank_image(width, height)
+                blank_image: function (r, g, b, a, width, height) {
+                    return compiler.blank_image(r, g, b, a, width, height)
                 },
                 grayscale: function (img_id) {
                     return compiler.grayscale(img_id)
                 },
-                resize_to_material: function (img_id, width, height) {
-                    return compiler.resize_to_material(img_id, width, height)
+                invert_color: function (img_id) {
+                    return compiler.invert(img_id)
+                },
+                flip_horizontal: function (img_id) {
+                    return compiler.flip_horizontal(img_id)
+                },
+                flip_vertical: function (img_id) {
+                    return compiler.flip_vertical(img_id)
+                },
+                mask_channel_r: function (img_id) {
+                    return compiler.mask_channel_r(img_id)
+                },
+                mask_channel_g: function (img_id) {
+                    return compiler.mask_channel_g(img_id)
+                },
+                mask_channel_b: function (img_id) {
+                    return compiler.mask_channel_b(img_id)
                 },
             }
         };
@@ -1044,24 +1113,11 @@ async function main() {
         observableStateStore.addConsoleMessage(time_now() + " ✔ Wasm module executed.");
 
         var wasm_memory = new Uint32Array(instance.exports.mem.buffer)
-        process_export(output_image_info, wasm_memory, output_material_info);
+        process_export(output_textures_info, wasm_memory, output_materials_info);
 
         observableStateStore.addConsoleMessage(time_now() + " ✔ Export finished.");
 
         loadElement.classList.remove("is-active");
-        // const wasm_raw = new Promise((resolve, _) => {
-        //     return output_wasm_buffer;
-        // });
-        // WebAssembly.instantiateStreaming(wasm_raw, wasmImportObject).then(
-        //     obj => {
-        //         var instance = obj.instance;
-        //         instance.exports.main();
-        //         var wasm_memory = new Uint32Array(instance.exports.mem.buffer);
-        //         observableStateStore.addConsoleMessage("\n✔ Wasm module executed.");
-        //         process_export(output_image_info, wasm_memory, output_material_info);
-        //         observableStateStore.addConsoleMessage("✔ Export finished.");
-        //     }
-        // );
 
         async function print_wat(buffer) {
             let w = await wabt()
@@ -1076,16 +1132,17 @@ async function main() {
         }
     }
 
-    function process_export(output_image_info, wasm_memory, output_material_info) {
+    function process_export(output_textures_info, wasm_memory, output_materials_info) {
         // single images
         let export_info = {}
-        for (let [name, id] of Object.entries(output_image_info)) {
+        for (let [name, id] of Object.entries(output_textures_info)) {
             export_info[name] = id;
         }
-        export_images("textures", compiler.library_export(export_info));
+        export_images("textures", compiler.library_export(export_info), "");
 
         // materials
-        for (let [offset, names] of Object.entries(output_material_info)) {
+        for (let [offset, names] of Object.entries(output_materials_info)) {
+            observableStateStore.addMaterialInstanceType(names[0], names[2]);
             if (wasm_memory[offset] < 2147483647) {
                 export_info = {}
                 export_info[names[1]] = wasm_memory[offset];
@@ -1094,15 +1151,14 @@ async function main() {
         }
     }
 
-    function export_images(category, result_images) {
-        for (let [name, data] of Object.entries(result_images)) {
-
+    function export_images(material_instance_name, received_images) {
+        for (let [image_name, data] of Object.entries(received_images)) {
             let image = {
                 src: pixelsToUrl(data.width, data.height, data.pixels),
                 width: data.width,
                 height: data.height,
             };
-            observableStateStore.addOutputImage(category, name, image);
+            observableStateStore.addOutputImage(material_instance_name, image_name, image);
         }
     }
 }

@@ -22,6 +22,10 @@ Number: i32 = {
     r"[-+]?[0-9]*" => i32::from_str(<>).unwrap(),
 };
 
+Str:String = {
+    r#"["`'][a-zA-Z_][a-zA-Z0-9_]*["`']"# => String::from_str(<>).unwrap(),
+}
+
 Identifier: String = {
     r"[a-zA-Z_][a-zA-Z0-9_]*" => String::from_str(<>).unwrap()
 }
@@ -48,6 +52,7 @@ FactorOp: Opcode = {
 
 Term: Box<Expr> = {
     Number => Box::new(Expr::Number(<>)),
+    Str => Box::new(Expr::Str(<>)), 
     Identifier => Box::new(Expr::Variable(<>)), 
     <identifier:Identifier> "(" <exprs:Comma<Expr>> ")" => Box::new(Expr::Call(identifier, exprs)),
     "(" <Expr> ")",

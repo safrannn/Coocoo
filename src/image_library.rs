@@ -83,7 +83,6 @@ impl ImageLibrary {
             if let Some(data) = self.content.get_mut(id) {
                 let mut new_data = data.clone();
                 new_data.name = name.clone();
-                let n = data.pixels.len();
                 result.insert(name.clone(), new_data);
             }
         }

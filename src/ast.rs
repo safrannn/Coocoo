@@ -73,6 +73,7 @@ impl Compile for Opcode {
 #[derive(Clone)]
 pub enum Expr {
     Number(i32),
+    Str(String),
     Variable(String),
     Op(Box<Expr>, Opcode, Box<Expr>),
     Call(String, Vec<Box<Expr>>),
@@ -83,6 +84,7 @@ impl Debug for Expr {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         match *self {
             Self::Number(n) => write!(fmt, "{:?}", n),
+            Self::Str(ref s) => write!(fmt, "{:?}", s),
             Self::Variable(ref identifier) => write!(fmt, "{:?}", identifier),
             Self::Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
             Self::Call(ref identifier, ref exprs) => write!(
@@ -107,6 +109,9 @@ impl Compile for Expr {
         match *self {
             Number(n) => {
                 builder.i32_const(n);
+                return Ok(());
+            }
+            Str(ref _s) => {
                 return Ok(());
             }
             Op(ref l, op, ref r) => {
@@ -417,7 +422,7 @@ impl Compile for Statement {
                             memories.store(builder, None, vec![MemoryValue::i32(i32::MAX); 32]);
                         symbol_table.insert(
                             identifier.clone(),
-                            Attribute::Material(mem_id, offset, "PBRMetalness".to_string()),
+                            Attribute::Material(mem_id, offset, "".to_string()),
                         );
 
                         if let Some(expression) = expr {
@@ -454,6 +459,7 @@ impl Compile for Statement {
                     match symbol_table.lookup(&identifiers[0]).unwrap().clone() {
                         Attribute::Material(_, material_offset, material_type) => {
                             let channel_name = &identifiers[1];
+
                             if let Ok(channel_index) = symbol_table
                                 .library_tracker
                                 .material_info
@@ -470,42 +476,45 @@ impl Compile for Statement {
                                             return Err("Error");
                                         }
                                         match symbol_table.lookup(&right_ident).unwrap().clone() {
-                                            Attribute::Image(right_local_id, right_image_info) => {
-                                                // store image index in material
+                                            Attribute::Image(_, right_image_info) => {
+                                                // store (resized) image in material
                                                 builder.i32_const(
                                                     (material_offset
-                                                        + 2 * u32::pow(2, ALIGN)
-                                                        + 4 * channel_index)
+                                                        + (3 + channel_index) * u32::pow(2, ALIGN))
                                                         as i32,
                                                 );
 
-                                                // implicit resize image before assigning it to a channel
                                                 builder.i32_const(right_image_info.unwrap().id);
-                                                memories.load(builder, material_offset);
-                                                memories.load(
-                                                    builder,
-                                                    material_offset + u32::pow(2, ALIGN),
-                                                );
+
+                                                // implicit resize image before assigning it to a channel
                                                 match symbol_table
-                                                    .lookup(&"resize_to_material".to_string())
+                                                    .lookup(&"resize".to_string())
                                                     .unwrap()
                                                     .clone()
                                                 {
-                                                    Attribute::Func(func_id, _, _) => {
-                                                        builder.call(func_id);
-                                                        builder.store(
-                                                            memories.id,
-                                                            walrus::ir::StoreKind::I32 {
-                                                                atomic: false,
-                                                            },
-                                                            walrus::ir::MemArg {
-                                                                align: ALIGN,
-                                                                offset: 0,
-                                                            },
+                                                    Attribute::Func(resize_func_id, _, _) => {
+                                                        memories.load(
+                                                            builder,
+                                                            material_offset + u32::pow(2, ALIGN),
                                                         );
+                                                        memories.load(
+                                                            builder,
+                                                            material_offset
+                                                                + 2 * u32::pow(2, ALIGN),
+                                                        );
+                                                        builder.call(resize_func_id);
                                                     }
                                                     _ => {}
                                                 }
+
+                                                builder.store(
+                                                    memories.id,
+                                                    walrus::ir::StoreKind::I32 { atomic: false },
+                                                    walrus::ir::MemArg {
+                                                        align: ALIGN,
+                                                        offset: 0,
+                                                    },
+                                                );
                                             }
                                             _ => {
                                                 log(&format!(
@@ -520,19 +529,18 @@ impl Compile for Statement {
                                         match symbol_table.lookup(func_ident).unwrap().clone() {
                                             Attribute::Func(_, _, returns) => {
                                                 if returns == vec![walrus::ValType::I32] {
-                                                    // store image index in material
+                                                    // store (resized) image in material
                                                     builder.i32_const(
                                                         (material_offset
-                                                            + 2 * u32::pow(2, ALIGN)
-                                                            + 4 * channel_index)
+                                                            + (3 + channel_index)
+                                                                * u32::pow(2, ALIGN))
                                                             as i32,
                                                     );
 
                                                     // get returned image id
-                                                    let offset = material_offset
-                                                        + 2 * u32::pow(2, ALIGN)
-                                                        + u32::pow(2, ALIGN) * channel_index;
-                                                    builder.i32_const(offset as i32);
+                                                    // let offset = material_offset
+                                                    //     + (3 + channel_index) * u32::pow(2, ALIGN);
+                                                    // builder.i32_const(offset as i32);
                                                     let call_compile_result = expr.compile(
                                                         module,
                                                         builder,
@@ -543,32 +551,38 @@ impl Compile for Statement {
                                                         return call_compile_result;
                                                     }
 
-                                                    memories.load(builder, material_offset);
-                                                    memories.load(
-                                                        builder,
-                                                        material_offset + u32::pow(2, ALIGN),
-                                                    );
                                                     // implicit resize image before assigning it to a channel
                                                     match symbol_table
-                                                        .lookup(&"resize_to_material".to_string())
+                                                        .lookup(&"resize".to_string())
                                                         .unwrap()
                                                         .clone()
                                                     {
-                                                        Attribute::Func(func_id, _, _) => {
-                                                            builder.call(func_id);
-                                                            builder.store(
-                                                                memories.id,
-                                                                walrus::ir::StoreKind::I32 {
-                                                                    atomic: false,
-                                                                },
-                                                                walrus::ir::MemArg {
-                                                                    align: ALIGN,
-                                                                    offset: 0,
-                                                                },
+                                                        Attribute::Func(resize_func_id, _, _) => {
+                                                            memories.load(
+                                                                builder,
+                                                                material_offset
+                                                                    + u32::pow(2, ALIGN),
                                                             );
+                                                            memories.load(
+                                                                builder,
+                                                                material_offset
+                                                                    + 2 * u32::pow(2, ALIGN),
+                                                            );
+                                                            builder.call(resize_func_id);
                                                         }
                                                         _ => {}
                                                     }
+
+                                                    builder.store(
+                                                        memories.id,
+                                                        walrus::ir::StoreKind::I32 {
+                                                            atomic: false,
+                                                        },
+                                                        walrus::ir::MemArg {
+                                                            align: ALIGN,
+                                                            offset: 0,
+                                                        },
+                                                    );
                                                 } else {
                                                     return Ok(());
                                                 }
@@ -706,7 +720,7 @@ impl Compile for Statement {
                                 return Err("Error");
                             }
                         },
-                        Attribute::Material(_, left_offset, _) => match expr {
+                        Attribute::Material(mem_id, left_offset, _) => match expr {
                             Expr::Variable(right_ident) => {
                                 if let Some(Attribute::Material(_, right_offset, _)) =
                                     symbol_table.lookup(right_ident)
@@ -728,26 +742,54 @@ impl Compile for Statement {
                             Expr::Call(right_func_ident, right_func_params) => {
                                 if *right_func_ident != "new_material".to_string() {
                                     log(&format!(
-                                    "Error: Please call new_material(width,height) to define {:?};",
+                                    "Error: Please call new_material(material type, width,height) to define {:?};",
                                     identifier
                                 ));
                                     return Err("Error");
                                 }
-                                if right_func_params.len() != 2 {
+                                if right_func_params.len() != 3 {
                                     log(&format!(
-                                    "Error: Please call new_material(width,height) to define {:?};",
+                                    "Error: Please call new_material(material type, width,height) to define {:?};",
                                     identifier
                                 ));
                                     return Err("Error");
                                 }
+                                let material_type = &*right_func_params[0];
+                                let width = &*right_func_params[1];
+                                let height = &*right_func_params[2];
 
-                                let width = &*right_func_params[0];
-                                let height = &*right_func_params[1];
+                                if let Expr::Str(t) = material_type {
+                                    let type_name = &t[1..t.len() - 1].to_string();
+                                    let material_type_id = symbol_table
+                                        .library_tracker
+                                        .material_info
+                                        .get_material_type_id(type_name)
+                                        .unwrap();
+
+                                    let update_result = symbol_table.update(
+                                        identifier,
+                                        Attribute::Material(mem_id, left_offset, type_name.clone()),
+                                    );
+                                    if update_result.is_err() {
+                                        return Err("Error");
+                                    }
+
+                                    memories.store(
+                                        builder,
+                                        Some(left_offset),
+                                        vec![MemoryValue::i32(material_type_id)],
+                                    );
+                                } else {
+                                    log(&format!(
+                                        "Error: Please use a string for material's type.",
+                                    ));
+                                    return Err("Error");
+                                }
 
                                 if let Expr::Number(width_i32) = width {
                                     memories.store(
                                         builder,
-                                        Some(left_offset),
+                                        Some(left_offset + u32::pow(2, ALIGN)),
                                         vec![MemoryValue::i32(*width_i32)],
                                     );
                                 } else {
@@ -756,10 +798,11 @@ impl Compile for Statement {
                                     ));
                                     return Err("Error");
                                 }
+
                                 if let Expr::Number(height_i32) = height {
                                     memories.store(
                                         builder,
-                                        Some(left_offset + 4),
+                                        Some(left_offset + 2 * u32::pow(2, ALIGN)),
                                         vec![MemoryValue::i32(*height_i32)],
                                     );
                                 } else {
@@ -786,17 +829,6 @@ impl Compile for Statement {
                 }
             }
             Block(_) => {
-                // builder.block(InstrSeqType::Simple(Option::None), |builder| {
-                //     for statement in statements {
-
-                //         let statement_compile_result =
-                //             statement.compile(module, builder, symbol_table);
-                //         if !statement_compile_result.is_ok() {
-                //             return statement_compile_result;
-                //         }
-                //     }
-                // });
-
                 return Ok(());
             }
             Call(ref identifier, ref exprs) => match identifier.as_str() {

@@ -20,6 +20,8 @@ import PublishIcon from '@material-ui/icons/Publish';
 import RemoveCircleOutlineIcon from '@material-ui/icons/RemoveCircleOutline';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import ChevronRightIcon from '@material-ui/icons/ChevronRight';
+import StopIcon from '@material-ui/icons/Stop';
+import HighlightOffIcon from '@material-ui/icons/HighlightOff';
 
 import { observer } from "mobx-react";
 import { makeObservable, observable, action } from "mobx"
@@ -443,11 +445,11 @@ const useStyles = makeStyles((theme) => ({
     },
 }));
 
-// var console_log = console.log;
-// console.log = function (message) {
-//     observableStateStore.addConsoleMessage(message);
-//     console_log.apply(console, arguments);
-// };
+var console_log = console.log;
+console.log = function (message) {
+    observableStateStore.addConsoleMessage(time_now() + " ✗ " + message);
+    console_log.apply(console, arguments);
+};
 
 export default function App() {
     const classes = useStyles();
@@ -636,7 +638,7 @@ function CodeBar() {
                 </IconButton>
                 <Divider orientation="vertical" /> */}
                 <IconButton onClick={handleClearCode}>
-                    <RemoveCircleOutlineIcon />
+                    <DeleteIcon />
                 </IconButton>
                 <Divider orientation="vertical" />
             </Grid>
@@ -645,6 +647,9 @@ function CodeBar() {
                 <IconButton id="run">
                     <PlayCircleFilledIcon />
                 </IconButton>
+                {/* <IconButton id="abort">
+                    <StopdIcon />
+                </IconButton> */}
             </Grid>
         </Grid>
 
@@ -1053,7 +1058,8 @@ async function main() {
         observableStateStore.clearOutputImage();
 
         let image_names = processImageInput();
-        observableStateStore.addConsoleMessage(time_now() + " ✔ Image uploaded.");
+        observableStateStore.addConsoleMessage(time_now() + " ✓ Image uploaded.");
+        let console_message_len_before = observableStateStore.consoleMessage.length;
 
         let output = compiler.code_to_wasm(observableStateStore.code, image_names);
         let output_wasm_buffer = new Uint8Array(output[0]);
@@ -1062,7 +1068,12 @@ async function main() {
         // console.log(output)
         // console.log("output_materials_info", output_materials_info)
 
-        observableStateStore.addConsoleMessage(time_now() + " ✔ Compile finished.");
+        if (observableStateStore.consoleMessage.length != console_message_len_before) {
+            loadElement.classList.remove("is-active");
+            return;
+        }
+
+        observableStateStore.addConsoleMessage(time_now() + " ✓ Compile finished.");
 
         print_wat(output_wasm_buffer);
 
@@ -1104,16 +1115,16 @@ async function main() {
             }
         };
         let { _, instance } = await WebAssembly.instantiate(output_wasm_buffer, wasmImportObject);
-        observableStateStore.addConsoleMessage(time_now() + " ✔ Wasm module instantiated.");
+        observableStateStore.addConsoleMessage(time_now() + " ✓ Wasm module instantiated.");
 
         instance.exports.main();
         // console.log(wasm_memory.slice(0, 200))
-        observableStateStore.addConsoleMessage(time_now() + " ✔ Wasm module executed.");
+        observableStateStore.addConsoleMessage(time_now() + " ✓ Wasm module executed.");
 
         var wasm_memory = new Uint32Array(instance.exports.mem.buffer)
         process_export(output_textures_info, wasm_memory, output_materials_info);
 
-        observableStateStore.addConsoleMessage(time_now() + " ✔ Export finished.");
+        observableStateStore.addConsoleMessage(time_now() + " ✓ Export finished.");
 
         loadElement.classList.remove("is-active");
 
@@ -1166,7 +1177,6 @@ function time_now() {
     return new_date.toLocaleTimeString('en-US', { hour12: false }) + ":" + new_date.getUTCMilliseconds();
 }
 main();
-
 
 
 

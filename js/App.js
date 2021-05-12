@@ -29,8 +29,6 @@ import wabt from "wabt";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
 
-import './App.css';
-
 
 const regeneratorRuntime = require("regenerator-runtime");
 

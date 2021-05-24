@@ -1,0 +1,293 @@
+{
+    "image_processing_functions": [
+        {
+            "name": "show_image",
+            "signature": "show_image(<img1>)",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [],
+            "explanation": "This function can export an individual image in the Output Image tab in the image panel. All the image exported using this function will go into the same tab called Texture. You can download each by clicking the button on the image.",
+            "usage": "show_image(processed_image);"
+        },
+        {
+            "name": "blank_image",
+            "signature": "blank_image(<n1>, <n2>, <n3>, <n4>, <n5>, <n6>) -> <img1>",
+            "parameters": [
+                "<n1>: R channel value of the background color",
+                "<n2>: G channel value of the background color",
+                "<n3>: B channel value of the background color",
+                "<n4>: Alpha channel value of the background color",
+                "<n5>: width of an image",
+                "<n6>: height of an image"
+            ],
+            "return": [
+                "<img1>: an image id"
+            ],
+            "explanation": "Generate a black empty image. First four arguments (<number(u8)>) are RGBA values, the last two are width and height. Below is an example to generate a solid black image of size 50 250.",
+            "usage": "var width:n = 50;\nvar height:n = 250;\nvar empty_image:i = blank_image(0, 0, 0, 255, width, height);"
+        },
+        {
+            "name": "darken",
+            "signature": "darken(<img1>, <n1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id",
+                "<n1>: a brightness value to reduce(0-255)"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "darken a target image with given a given value by reducing red, green and blue channel all by the given value. The given value should be within 0-255, a channel whose value surpasses the limit will be adjusted to boudary 0 or 255 accordingly",
+            "usage": "var darkened_image:i = darken(squirrel_image, 50);"
+        },
+        {
+            "name": "grayscale",
+            "signature": "grayscale(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: image_id"
+            ],
+            "explanation": "Convert an image into a grayscale image. The new pixel value becomes the average of the original RGB value each multiplied with a coefficient.",
+            "usage": "var grayscale_image:i = grayscale(colorful_image);"
+        },
+        {
+            "name": "invert_color",
+            "signature": "resize(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Invert the color an image. Value in each RGB channel will be 255 - current value.",
+            "usage": "var inverted_image:i = invert_color(original_image);"
+        },
+        {
+            "name": "flip_horizontal",
+            "signature": "flip_horizontal(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Flip the image horizontally.",
+            "usage": "var flipped_image:i = flip_horizontal(original_image);"
+        },
+        {
+            "name": "flip_vertical",
+            "signature": "flip_vertical(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Flip the image vertically.",
+            "usage": "var flipped_image:i = flip_vertical(original_image);"
+        },
+        {
+            "name": "mask_channel_r",
+            "signature": "mask_channel_r(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Mask the red channel to show only blue and green channel.",
+            "usage": "var masked_image:i = mask_channel_r(original_image);"
+        },
+        {
+            "name": "mask_channel_g",
+            "signature": "mask_channel_g(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Mask the green channel to show only blue and red channel.",
+            "usage": "var masked_image:i = mask_channel_r(original_image);"
+        },
+        {
+            "name": "mask_channel_b",
+            "signature": "mask_channel_b(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Mask the blue channel to show only red and green channel.",
+            "usage": "var masked_image:i = mask_channel_b(original_image);"
+        },
+        {
+            "name": "noise",
+            "signature": "noise(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Add noise to an image.",
+            "usage": "var noise_image:i = noise(original_image);"
+        },
+        {
+            "name": "blur",
+            "signature": "blur(<img1>) -> <img2>",
+            "parameters": [
+                "<img1>: an image id"
+            ],
+            "return": [
+                "<img2>: an image id"
+            ],
+            "explanation": "Blur an image with gaussian blur.",
+            "usage": "var blur_image:i = blur(original_image);"
+        }
+    ],
+    "material": {
+        "new_material": {
+            "name": "new_material",
+            "signature": "new_material(<s1>, <n1>, <n2>) -> <m1>",
+            "parameters": [
+                "<s1>: new material's type",
+                "<n1>: new material's width",
+                "<n2>: new material's height"
+            ],
+            "return": [
+                "<m1>: a material"
+            ],
+            "explanation": "New materials can be generated from new_material functions. Remove the space between words and add double quotes before and after to make it a string. Any images or textures assigned to its maps will implicitly resize to the size of this material.",
+            "usage": "var w:n = 256;\nvar h:n = 256;\nvar stone_material:m = new_material(\"PBRMetalness\", w, h);"
+        },
+        "specs": [
+            {
+                "name": "PBR Metalness",
+                "maps": [
+                    {
+                        "name": "Metalness",
+                        "description": "Black and white image that serves as a mask to describe if an area behaves like metal. For masks, white indicates true and black indicates false."
+                    },
+                    {
+                        "name": "Roughness",
+                        "description": "Describe how rough the surface is. Black for smooth surface and white for completely rough surface. A smoother surface has a more intense and bright highlight, while rougher surface has larger dimmer highlight."
+                    },
+                    {
+                        "name": "Diffuse",
+                        "description": "Base color input, also the color of reflective metal. As it’s name infer, it’s a reflection of light in many directions."
+                    },
+                    {
+                        "name": "Normal",
+                        "description": "Describes the bumps and dents of a surface without deforming a geometry. RGB value corresponds to XYZ axis that an area deforms."
+                    },
+                    {
+                        "name": "Transparency",
+                        "description": "Describes whether an area should be transparent, opaque or in between. Same as for the mask, white means the area is opaque and black for not being visible."
+                    },
+                    {
+                        "name": "Ambient Occlusion (AO)",
+                        "description": "A grayscale map used to create soft shadows. White means full indirect lighting is received and black for no indirect lighting received."
+                    },
+                    {
+                        "name": "Displacement",
+                        "description": "Describes the displacement of an area from the original surface. The difference between normal map and displacement map is that displacement map alters the geometry."
+                    },
+                    {
+                        "name": "Emissive",
+                        "description": "Also called an incandescence map. Used if the objects illuminates itself with a light color. Black means no light emitted."
+                    },
+                    {
+                        "name": "Cavity",
+                        "description": "Also called crevice map that represents that dark shading of a crevice, which is similar to the blue channel for Z axis in normal map."
+                    },
+                    {
+                        "name": "Subsurface Scattering",
+                        "description": "Subsurface scattering in short describes a light that penetrates a translucent surface and reflected many times at random angle before exiting the surface. Usually used for materials such as skin, milk and marble."
+                    }
+                ]
+            },
+            {
+                "name": "PBR Specular",
+                "maps": [
+                    {
+                        "name": "Specular",
+                        "description": "Color of specular reflection. If used for a metal, this will be the color the metal appears to be. Generally white for non metals."
+                    },
+                    {
+                        "name": "Glossiness",
+                        "description": "Amount of highlight a material has. Black results in the material appears to be matte, and white for a very glossy/shiny one."
+                    },
+                    {
+                        "name": "Albedo",
+                        "description": "Similar to a diffuse map that shows the base color of a material."
+                    },
+                    {
+                        "name": "Normal",
+                        "description": "Describes the bumps and dents of a surface without deforming a geometry. RGB value corresponds to XYZ axis that an area deforms."
+                    },
+                    {
+                        "name": "Transparency",
+                        "description": "Describes whether an area should be transparent, opaque or in between. Same as for the mask, white means the area is opaque and black for not being visible."
+                    },
+                    {
+                        "name": "Ambient Occlusion (AO)",
+                        "description": "A grayscale map used to create soft shadows. White means full indirect lighting is received and black for no indirect lighting received."
+                    },
+                    {
+                        "name": "Displacement",
+                        "description": "Describes the displacement of an area from the original surface. The difference between normal map and displacement map is that displacement map alters the geometry."
+                    },
+                    {
+                        "name": "Emissive",
+                        "description": "Also called an incandescence map. Used if the objects illuminates itself with a light color. Black means no light emitted."
+                    },
+                    {
+                        "name": "Cavity",
+                        "description": "Also called crevice map that represents that dark shading of a crevice, which is similar to the blue channel for Z axis in normal map."
+                    },
+                    {
+                        "name": "Subsurface Scattering",
+                        "description": "Subsurface scattering in short describes a light that penetrates a translucent surface and reflected many times at random angle before exiting the surface. Usually used for materials such as skin, milk and marble."
+                    }
+                ]
+            },
+            {
+                "name": "Unity Specular",
+                "maps": [
+                    {
+                        "name": "Specular",
+                        "description": "Color of specular reflection. If used for a metal, this will be the color the metal appears to be. Generally white for non metals."
+                    },
+                    {
+                        "name": "Albedo",
+                        "description": "Similar to a diffuse map that shows the base color of a material."
+                    },
+                    {
+                        "name": "Normal",
+                        "description": "Describes the bumps and dents of a surface without deforming a geometry. RGB value corresponds to XYZ axis that an area deforms."
+                    },
+                    {
+                        "name": "Transparency",
+                        "description": "Describes whether an area should be transparent, opaque or in between. Same as for the mask, white means the area is opaque and black for not being visible."
+                    },
+                    {
+                        "name": "Ambient Occlusion (AO)",
+                        "description": "A grayscale map used to create soft shadows. White means full indirect lighting is received and black for no indirect lighting received."
+                    },
+                    {
+                        "name": "Height",
+                        "description": "Same as a displacement map, only that the information are used to modify a vertex’s height."
+                    },
+                    {
+                        "name": "Emissive",
+                        "description": "Also called an incandescence map. Used if the objects illuminates itself with a light color. Black means no light emitted."
+                    }
+                ]
+            }
+        ]
+    }
+}

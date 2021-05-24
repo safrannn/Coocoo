@@ -22,6 +22,8 @@ import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import ChevronRightIcon from '@material-ui/icons/ChevronRight';
 import StopIcon from '@material-ui/icons/Stop';
 import HighlightOffIcon from '@material-ui/icons/HighlightOff';
+import PhotoIcon from '@material-ui/icons/Photo';
+import BurstModeIcon from '@material-ui/icons/BurstMode';
 
 import { observer } from "mobx-react";
 import { makeObservable, observable, action } from "mobx"
@@ -30,6 +32,9 @@ import wabt from "wabt";
 
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"
+import { MenuBook } from '@material-ui/icons';
+
+var references = require('./references.json');
 
 
 const regeneratorRuntime = require("regenerator-runtime");
@@ -382,9 +387,9 @@ const useStyles = makeStyles((theme) => ({
     leftSiderTabPanels: {
         padding: theme.spacing(1),
         flexGrow: 1,
+        width: "calc(3 * 100vh/12 - 48px)",
     },
     codeBlock: {
-        // height: "calc(100vh - 45px)",
     },
     codeBar: {
         width: '100%',
@@ -525,12 +530,95 @@ function a11yProps(prefix, index) {
     };
 }
 
+
+
+
 const LeftSider = observer(() => {
     const classes = useStyles();
 
     const handleChange = (event, newValue) => {
         observableStateStore.leftSiderTabValue = newValue;
     };
+
+    const array_to_tree_1 = function (local_name, array) {
+        let items = []
+        array.forEach((element, index) => {
+            items.push(
+                <TreeItem
+                    key={local_name + "_" + index.toString()}
+                    nodeId={local_name + "_" + index.toString()}
+                    label={element} />
+            )
+        })
+        return items
+    }
+
+    const array_to_tree_2 = function (local_name, array) {
+        let items = []
+        array.forEach((element, index) => {
+            items.push(
+                <TreeItem key={local_name + "_" + element.name} nodeId={element.name} label={element.name}>
+                    <TreeItem key={local_name + "_" + element.name + "_description"} nodeId={element.name + "_description"} label={element.description} />
+                </TreeItem>
+            )
+        })
+        return items
+    }
+
+    const items_ipf = [];
+    references.image_processing_functions.forEach((f) => {
+        items_ipf.push(
+            <TreeItem key={f.name} nodeId={f.name + "_main"} label={f.name}>
+                <TreeItem key={f.name + "_signature"} nodeId={f.name + "_signature"} label="signature">
+                    <TreeItem key={f.name + "_signature_1"} nodeId={f.name + "signature_1"} label={f.signature} />
+                </TreeItem>
+                <TreeItem key={f.name + "_input"} nodeId={f.name + "_input"} label="parameter">
+                    {array_to_tree_1(f.name + "_parameter", f.parameters)}
+                </TreeItem>
+                <TreeItem key={f.name + "_return"} nodeId={f.name + "_return"} label="return">
+                    {array_to_tree_1(f.name + "_return", f.parameters)}
+                </TreeItem>
+                <TreeItem key={f.name + "_explanation"} nodeId={f.name + "_explanation"} label="explanation">
+                    <TreeItem key={f.name + "_explanation_1"} nodeId={f.name + "_explanation_1"} label={f.explanation} />
+                </TreeItem>
+                <TreeItem key={f.name + "_usage"} nodeId={f.name + "_usage"} label="usage">
+                    <TreeItem key={f.name + "_usage_1"} nodeId={f.name + "usage_1"} label={f.usage} />
+                </TreeItem>
+            </TreeItem>
+        )
+    });
+
+    const items_m = [];
+
+    let m = references.material.new_material
+    items_m.push(
+        <TreeItem key={m.name} nodeId={m.name + "_main"} label={m.name}>
+            <TreeItem key={m.name + "_signature"} nodeId={m.name + "_signature"} label="signature">
+                <TreeItem key={m.name + "_signature_1"} nodeId={m.name + "signature_1"} label={m.signature} />
+            </TreeItem>
+            <TreeItem key={m.name + "_input"} nodeId={m.name + "_input"} label="parameter">
+                {array_to_tree_1(m.name + "_parameter", m.parameters)}
+            </TreeItem>
+            <TreeItem key={m.name + "_return"} nodeId={m.name + "_return"} label="return">
+                {array_to_tree_1(m.name + "_return", m.parameters)}
+            </TreeItem>
+            <TreeItem key={m.name + "_explanation"} nodeId={m.name + "_explanation"} label="explanation">
+                <TreeItem key={m.name + "_explanation_1"} nodeId={m.name + "_explanation_1"} label={m.explanation} />
+            </TreeItem>
+            <TreeItem key={m.name + "_usage"} nodeId={m.name + "_usage"} label="usage">
+                <TreeItem key={m.name + "_usage_1"} nodeId={m.name + "usage_1"} label={m.usage} />
+            </TreeItem>
+        </TreeItem>
+    )
+
+    references.material.specs.forEach((s) => {
+        items_m.push(
+            <TreeItem key={s.name} nodeId={s.name} label={s.name}>
+                {array_to_tree_2(s.name, s.maps)}
+            </TreeItem>
+        )
+    });
+
 
     return (
         <div className={classes.leftSider}>
@@ -541,71 +629,35 @@ const LeftSider = observer(() => {
                 className={classes.leftSiderTabs}
             >
                 <Tab icon={<MenuBookIcon />} {...a11yProps("leftSider-tabs", 0)} className={classes.leftSiderTab} />
+                <Tab icon={<PhotoIcon />} {...a11yProps("leftSider-tabs", 1)} className={classes.leftSiderTab} />
+                <Tab icon={<BurstModeIcon />} {...a11yProps("leftSider-tabs", 2)} className={classes.leftSiderTab} />
             </Tabs>
-            <TabPanel value={observableStateStore.leftSiderTabValue} index={0} prefix="leftSider-tabs">
-                <LeftSiderDocument></LeftSiderDocument>
+            <TabPanel className={classes.leftSiderTabPanels} value={observableStateStore.leftSiderTabValue} index={0} prefix="leftSider-tabs">
+                <Button variant="contained" color="primary" href="https://coocoo.slite.com/api/s/note/64hFRhCVju2BJk6vLtCoDW/Coocoo-Documentation">
+                    Getting Started
+                </Button>
+            </TabPanel>
+            <TabPanel className={classes.leftSiderTabPanels} value={observableStateStore.leftSiderTabValue} index={1} prefix="leftSider-tabs">
+                <TreeView
+                    defaultCollapseIcon={<ExpandMoreIcon />}
+                    defaultExpandIcon={<ChevronRightIcon />}
+                >
+                    {items_ipf}
+                </TreeView>
+            </TabPanel>
+            <TabPanel className={classes.leftSiderTabPanels} value={observableStateStore.leftSiderTabValue} index={2} prefix="leftSider-tabs">
+                <TreeView
+                    defaultCollapseIcon={<ExpandMoreIcon />}
+                    defaultExpandIcon={<ChevronRightIcon />}
+                >
+                    {items_m}
+                </TreeView>
             </TabPanel>
         </div>
     );
 })
 
-function LeftSiderDocument() {
-    const classes = useStyles();
-    return (
-        <TreeView
-            className={classes.leftSiderTabPanels}
-            defaultCollapseIcon={<ExpandMoreIcon />}
-            defaultExpandIcon={<ChevronRightIcon />}
-        >
-            <TreeItem nodeId="blank_image_main" label="blank_image([n1], [n2]) -> [n3]">
-                <TreeItem nodeId="blank_image_inp" label="input">
-                    <TreeItem nodeId="blank_image_inp_1" label="[n1] width of an image" />
-                    <TreeItem nodeId="blank_image_inp_2" label="[n2] height of an image" />
-                </TreeItem>
-                <TreeItem nodeId="blank_image_rtn" label="return">
-                    <TreeItem nodeId="blank_image_rtn_1" label="[n3] image_id" />
-                </TreeItem>
-                <TreeItem nodeId="blank_image_exp" label="explanation">
-                    <TreeItem nodeId="blank_image_exp_1" label="create a white image with given width and given height" />
-                </TreeItem>
-                <TreeItem nodeId="blank_image_usg" label="usage">
-                    <TreeItem nodeId="blank_image_usg_1" label="img_1 = blank_image(50,10);" />
-                </TreeItem>
-            </TreeItem>
-            <TreeItem nodeId="darken_main" label="darken([img1], [n1]) -> [n2]">
-                <TreeItem nodeId="darken_inp" label="input">
-                    <TreeItem nodeId="darken_inp_1" label="[img1] an image id" />
-                    <TreeItem nodeId="darken_inp_2" label="[n1] a brightness value to reduce" />
-                </TreeItem>
-                <TreeItem nodeId="darken_rtn" label="return">
-                    <TreeItem nodeId="darken_rtn_1" label="[n2] image_id" />
-                </TreeItem>
-                <TreeItem nodeId="darken_exp" label="explanation">
-                    <TreeItem nodeId="darken_exp_1" label="darken a target image with given a given value by reducing red, green and blue channel all
-                      by the given value. The given value should be within 0-255, a channel whose value surpasses the limit will
-                      be adjusted to boudary 0 or 255 accordingly" />
-                </TreeItem>
-                <TreeItem nodeId="darken_usg" label="usage">
-                    <TreeItem nodeId="darken_usg_1" label="img_1 = darken(grassland,10);" />
-                </TreeItem>
-            </TreeItem>
-            <TreeItem nodeId="grayscale_main" label="grayscale([img1]) -> [n1]">
-                <TreeItem nodeId="grayscale_inp" label="input">
-                    <TreeItem nodeId="grayscale_inp_1" label="[img1] an image id" />
-                </TreeItem>
-                <TreeItem nodeId="grayscale_rtn" label="return">
-                    <TreeItem nodeId="grayscale_rtn_1" label="[n1] image_id" />
-                </TreeItem>
-                <TreeItem nodeId="grayscale_exp" label="explanation">
-                    <TreeItem nodeId="grayscale_exp_1" label="generate grayscale of an image" />
-                </TreeItem>
-                <TreeItem nodeId="grayscalen_usg" label="usage">
-                    <TreeItem nodeId="grayscale_usg_1" label="img_1 = grayscale(sky);" />
-                </TreeItem>
-            </TreeItem>
-        </TreeView>
-    );
-}
+
 
 function CodeBlock() {
     const classes = useStyles();

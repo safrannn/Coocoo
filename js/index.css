@@ -10,6 +10,9 @@ code {
     font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
+/* top: calc((100% - 44px) / 2 + 24px);
+left: calc(5 / 24 * 100% + 24px); */
+
 .loader {
     color: #fff;
     position: fixed;
@@ -53,22 +56,9 @@ code {
     }
 }
 
-.loader-default[data-text]:before {
-    top: calc(50% - 63px)
-}
-
-.loader-default:after {
-    content: "";
-    position: fixed;
-    width: 48px;
-    height: 48px;
-    border: 8px solid #fff;
-    border-left-color: transparent;
-    border-radius: 50%;
-    top: calc(50% - 24px);
-    left: calc(50% - 24px);
-    animation: rotation 1s linear infinite
-}
+/* .loader-default[data-text]:before {
+    top: calc((100%-44px)/2+48px)
+} */
 
 .loader-default[data-half]:after {
     border-right-color: transparent
@@ -78,31 +68,27 @@ code {
     animation-direction: reverse
 }
 
-.loader[data-text]:before {
+.loader-default[data-text]:before {
     position: fixed;
-    left: 0;
-    top: 50%;
-    color: currentColor;
+    left: calc(19 / 24 * 100%);
+    top: calc(50% + 48px);
+    color: #fff;
     font-family: Helvetica, Arial, sans-serif;
-    text-align: center;
+    text-align: start;
     width: 100%;
-    font-size: 14px
+    font-size: 16px
 }
 
-.loader[data-text=""]:before {
+.loader-default[data-text=""]:before {
     content: "Loading"
 }
 
-.loader[data-text]:not([data-text=""]):before {
+.loader-default[data-text]:not([data-text=""]):before {
     content: attr(data-text)
 }
 
-.loader[data-text][data-blink]:before {
+.loader-default[data-text][data-blink]:before {
     animation: blink 1s linear infinite alternate
-}
-
-.loader-default[data-text]:before {
-    top: calc(50% - 63px)
 }
 
 .loader-default:after {
@@ -113,15 +99,7 @@ code {
     border: 8px solid #fff;
     border-left-color: transparent;
     border-radius: 50%;
-    top: calc(50% - 24px);
-    left: calc(50% - 24px);
+    top: calc((100% - 44px) / 2);
+    left: calc(19 / 24 * 100%);
     animation: rotation 1s linear infinite
-}
-
-.loader-default[data-half]:after {
-    border-right-color: transparent
-}
-
-.loader-default[data-inverse]:after {
-    animation-direction: reverse
 }

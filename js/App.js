@@ -425,15 +425,17 @@ const useStyles = makeStyles((theme) => ({
     },
     imageInputPanel: {
         padding: theme.spacing(1),
+        overflow: 'auto',
+        height: 'calc(98vh - 140px)',
+        maxHeight: 'calc(98vh - 140px)',
     },
     gridList: {
         flexWrap: 'nowrap',
         transform: 'translateZ(0)',
     },
     imageTitleBar: {
-        background:
-            'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0) 70%)',
-        color: "white",
+        color: 'rgba(0,0,0, 0.5)',
+        background: 'rgba(255, 255, 255, 0.7)',
     },
     imageOutputFileList: {
         flexGrow: 1,
@@ -1002,7 +1004,7 @@ const ImageOutputImageFileDisplay = observer(({ material_instance }) => {
                 <GridListTileBar
                     className={classes.imageTitleBar}
                     title={
-                        <form noValidate autoComplete="off">
+                        <form noValidate autoComplete="off" >
                             <InputBase value={name} id={name} margin="dense" autoFocus onChange={handleRename} >
                             </InputBase>
                         </form>
@@ -1013,6 +1015,7 @@ const ImageOutputImageFileDisplay = observer(({ material_instance }) => {
                             </GetAppIcon>
                         </Button>
                     }
+
                 />
             </GridListTile >
         )
@@ -1135,7 +1138,7 @@ async function main() {
                     console.log(arg);
                 },
                 resize: function (img_id, width, height) {
-                    return compiler.resize(img_id, width, height)
+                    return compiler.resize_(img_id, width, height)
                 },
                 darken: function (img_id, value) {
                     return compiler.darken(img_id, value)
@@ -1144,7 +1147,7 @@ async function main() {
                     return compiler.blank_image(r, g, b, a, width, height)
                 },
                 grayscale: function (img_id) {
-                    return compiler.grayscale(img_id)
+                    return compiler.grayscale_(img_id)
                 },
                 invert_color: function (img_id) {
                     return compiler.invert(img_id)
@@ -1163,6 +1166,18 @@ async function main() {
                 },
                 mask_channel_b: function (img_id) {
                     return compiler.mask_channel_b(img_id)
+                },
+                blur: function (img_id) {
+                    return compiler.blur(img_id)
+                },
+                blur_gaussian: function (img_id) {
+                    return compiler.blur_gaussian(img_id)
+                },
+                noise_perlin: function (img_id) {
+                    return compiler.noise_perlin(img_id, radius)
+                },
+                sharpen: function (img_id) {
+                    return compiler.sharpen_(img_id)
                 },
             }
         };

@@ -263,6 +263,19 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
         "mask_channel_b".to_string(),
         (vec![ValType::I32], vec![ValType::I32]),
     );
+    lib_func_list.insert("blur".to_string(), (vec![ValType::I32], vec![ValType::I32]));
+    lib_func_list.insert(
+        "blur_gaussian".to_string(),
+        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "noise_perlin".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "sharpen".to_string(),
+        (vec![ValType::I32], vec![ValType::I32]),
+    );
     return lib_func_list;
 }
 

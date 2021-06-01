@@ -232,6 +232,10 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
         (vec![ValType::I32; 2], vec![ValType::I32]),
     );
     lib_func_list.insert(
+        "lighten".to_string(),
+        (vec![ValType::I32; 2], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
         "blank_image".to_string(),
         (vec![ValType::I32; 6], vec![ValType::I32]),
     );
@@ -266,7 +270,7 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
     lib_func_list.insert("blur".to_string(), (vec![ValType::I32], vec![ValType::I32]));
     lib_func_list.insert(
         "blur_gaussian".to_string(),
-        (vec![ValType::I32, ValType::I32], vec![ValType::I32]),
+        (vec![ValType::I32; 2], vec![ValType::I32]),
     );
     lib_func_list.insert(
         "noise_perlin".to_string(),
@@ -275,6 +279,14 @@ fn library_function_list() -> HashMap<String, (Vec<walrus::ValType>, Vec<walrus:
     lib_func_list.insert(
         "sharpen".to_string(),
         (vec![ValType::I32], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "overlay".to_string(),
+        (vec![ValType::I32; 2], vec![ValType::I32]),
+    );
+    lib_func_list.insert(
+        "multiply".to_string(),
+        (vec![ValType::I32; 2], vec![ValType::I32]),
     );
     return lib_func_list;
 }

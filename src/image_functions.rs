@@ -87,6 +87,31 @@ pub fn darken(image_id: i32, value: i32) -> i32 {
 }
 
 #[wasm_bindgen]
+pub fn lighten_(image_id: i32, value: i32) -> i32 {
+    let mut image_data = IMAGE_LIBRARY
+        .lock()
+        .unwrap()
+        .get_image_data(image_id)
+        .unwrap()
+        .clone();
+    let value = value as u8;
+    for i in 0..image_data.pixels.len() {
+        if (i + 1) / 4 == 0 {
+            continue;
+        } else if (image_data.pixels[i] + value) < 255 {
+            image_data.pixels[i] += value;
+        } else {
+            image_data.pixels[i] = 255;
+        }
+    }
+    IMAGE_LIBRARY.lock().unwrap().add_image(
+        "".to_string(),
+        image_data.width,
+        image_data.height,
+        image_data.pixels,
+    )
+}
+#[wasm_bindgen]
 pub fn blank_image(r: i32, g: i32, b: i32, a: i32, width: i32, height: i32) -> i32 {
     let pixel_total: usize = (width * height * 4) as usize;
     let mut image_data: Vec<u8> = vec![0; pixel_total];
@@ -363,5 +388,76 @@ pub fn sharpen_(image_id: i32) -> i32 {
         image_data.width,
         image_data.height,
         photon_image.get_raw_pixels(),
+    )
+}
+
+#[wasm_bindgen]
+pub fn overlay(image_id_1: i32, image_id_2: i32) -> i32 {
+    let mut image_data_1 = IMAGE_LIBRARY
+        .lock()
+        .unwrap()
+        .get_image_data(image_id_1)
+        .unwrap()
+        .clone();
+    let mut photon_image_1 = PhotonImage::new(
+        image_data_1.pixels,
+        image_data_1.width as u32,
+        image_data_1.height as u32,
+    );
+
+    let mut image_data_2 = IMAGE_LIBRARY
+        .lock()
+        .unwrap()
+        .get_image_data(image_id_2)
+        .unwrap()
+        .clone();
+    let mut photon_image_2 = PhotonImage::new(
+        image_data_2.pixels,
+        image_data_2.width as u32,
+        image_data_2.height as u32,
+    );
+
+    multiple::blend(&mut photon_image_1, &photon_image_2, "overlay");
+
+    IMAGE_LIBRARY.lock().unwrap().add_image(
+        "".to_string(),
+        photon_image_1.get_width() as i32,
+        photon_image_1.get_height() as i32,
+        photon_image_1.get_raw_pixels(),
+    )
+}
+#[wasm_bindgen]
+pub fn multiply(image_id_1: i32, image_id_2: i32) -> i32 {
+    let mut image_data_1 = IMAGE_LIBRARY
+        .lock()
+        .unwrap()
+        .get_image_data(image_id_1)
+        .unwrap()
+        .clone();
+    let mut photon_image_1 = PhotonImage::new(
+        image_data_1.pixels,
+        image_data_1.width as u32,
+        image_data_1.height as u32,
+    );
+
+    let mut image_data_2 = IMAGE_LIBRARY
+        .lock()
+        .unwrap()
+        .get_image_data(image_id_2)
+        .unwrap()
+        .clone();
+    let mut photon_image_2 = PhotonImage::new(
+        image_data_2.pixels,
+        image_data_2.width as u32,
+        image_data_2.height as u32,
+    );
+
+    multiple::blend(&mut photon_image_1, &photon_image_2, "multiply");
+
+    IMAGE_LIBRARY.lock().unwrap().add_image(
+        "".to_string(),
+        photon_image_1.get_width() as i32,
+        photon_image_1.get_height() as i32,
+        photon_image_1.get_raw_pixels(),
     )
 }

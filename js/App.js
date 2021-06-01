@@ -1143,6 +1143,9 @@ async function main() {
                 darken: function (img_id, value) {
                     return compiler.darken(img_id, value)
                 },
+                lighten: function (img_id, value) {
+                    return compiler.lighten_(img_id, value)
+                },
                 blank_image: function (r, g, b, a, width, height) {
                     return compiler.blank_image(r, g, b, a, width, height)
                 },
@@ -1150,7 +1153,7 @@ async function main() {
                     return compiler.grayscale_(img_id)
                 },
                 invert_color: function (img_id) {
-                    return compiler.invert(img_id)
+                    return compiler.invert_color(img_id)
                 },
                 flip_horizontal: function (img_id) {
                     return compiler.flip_horizontal(img_id)
@@ -1173,11 +1176,17 @@ async function main() {
                 blur_gaussian: function (img_id) {
                     return compiler.blur_gaussian(img_id)
                 },
-                noise_perlin: function (img_id) {
+                noise_perlin: function (img_id, radius) {
                     return compiler.noise_perlin(img_id, radius)
                 },
                 sharpen: function (img_id) {
                     return compiler.sharpen_(img_id)
+                },
+                overlay: function (img_id_1, img_id_2) {
+                    return compiler.overlay(img_id_1, img_id_2)
+                },
+                multiply: function (img_id_1, img_id_2) {
+                    return compiler.multiply(img_id_1, img_id_2)
                 },
             }
         };
